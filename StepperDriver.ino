@@ -9,6 +9,11 @@ LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars
 #define STEP  10
 #define DIR    9
 
+#define RESET_MASK B00010000
+#define SLEEP_MASK B00001000
+#define STEP_MASK  B00000100
+#define DIR_MASK   B00000010
+
 #define BUTTON_IN A2
 #define BUTTON_1 917
 #define BUTTON_2 994
@@ -204,20 +209,23 @@ void lcdClearDisplay()
 
 void floatToLcdString(char prompt[20], float val)
 {
-  int iVal = (10.0f * val);
+  int iVal = (int) round(10.0f * val);
   memset(prompt, ' ', 20);
   int cent = iVal / 100;
   int dec = (iVal - (100 * cent)) / 10;
   int uni = iVal % 10;
   sprintf(prompt, "VALORE: %d%d.%d", cent, dec, uni); 
+  Serial.println(prompt);
 }
 
 
 void motorStep(int stepDelay)
 {
-  digitalWrite(STEP, HIGH);
+  //digitalWrite(STEP, HIGH);
+  PORTB |= STEP_MASK;
   delayMicroseconds(stepDelay);
-  digitalWrite(STEP, LOW);
+  //digitalWrite(STEP, LOW);
+  PORTB &= ~STEP_MASK;
   delayMicroseconds(stepDelay);
     
   stepCount += 1;
@@ -379,13 +387,15 @@ void motorPower(bool powerOn)
 {
   if (powerOn)
   {
-    digitalWrite(RESET, HIGH);
-    digitalWrite(SLEEP, HIGH);
+    PORTB |= (RESET_MASK | SLEEP_MASK);
+    //digitalWrite(RESET, HIGH);
+    //digitalWrite(SLEEP, HIGH);
   }
   else
   {
-    digitalWrite(RESET, LOW);
-    digitalWrite(RESET, LOW);
+    PORTB &= ~(RESET_MASK | SLEEP_MASK);
+    //digitalWrite(RESET, LOW);
+    //digitalWrite(RESET, LOW);
 
     stepCount = 0;
   }
@@ -404,7 +414,15 @@ void setup()
   pinMode(STEP, OUTPUT);
   pinMode(DIR, OUTPUT);
   motorPower(false);
-  digitalWrite(DIR, curDirection);
+  //digitalWrite(DIR, curDirection);
+  if (curDirection)
+  {
+    PORTB |= DIR_MASK;
+  }
+  else
+  {
+    PORTB &= DIR_MASK;
+  }
   
 
   lcd.init();
@@ -607,7 +625,7 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextVel > 0.1f)
+          if (nextVel >= 0.1f)
             nextVel -= 0.1f;
                     
         char prompt[20];
@@ -617,9 +635,14 @@ void loop()
         break;
         case BTN_2_RELEASE:
         {
-          if (nextVel < 49.9f)
+          Serial.print("nextVel before: "); Serial.println(nextVel);
+          if (nextVel <= 49.9f)
+          {
+            Serial.println("can increment");
             nextVel += 0.1f;
+          }
             
+            Serial.print("nextVel after: "); Serial.println(nextVel);
           char prompt[20];
           floatToLcdString(prompt, nextVel);
           lcdPrint(prompt);            
@@ -627,7 +650,7 @@ void loop()
         break;
         case BTN_3_RELEASE:
         {
-          if (nextVel > 1.0f)
+          if (nextVel >= 1.0f)
             nextVel -= 1.0f;
 
           char prompt[20];
@@ -637,7 +660,7 @@ void loop()
         break;
         case BTN_4_RELEASE:
         {
-          if (nextVel < 49.0f)
+          if (nextVel <= 49.0f)
             nextVel += 1.0f;
 
           char prompt[20];
@@ -664,7 +687,7 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextDistSpellic > 0.1f)
+          if (nextDistSpellic >= 0.1f)
             nextDistSpellic -= 0.1f;
     
           char prompt[20];
@@ -674,7 +697,7 @@ void loop()
         break;
         case BTN_2_RELEASE:
         {
-          if (nextDistSpellic < 249.9f)
+          if (nextDistSpellic <= 249.9f)
             nextDistSpellic += 0.1f;
 
           char prompt[20];
@@ -684,7 +707,7 @@ void loop()
         break;
         case BTN_3_RELEASE:
         {
-          if (nextDistSpellic > 1.0f)
+          if (nextDistSpellic >= 1.0f)
             nextDistSpellic -= 1.0f;
 
           char prompt[20];
@@ -694,7 +717,7 @@ void loop()
         break;
         case BTN_4_RELEASE:
         {
-          if (nextDistSpellic < 249.0f)
+          if (nextDistSpellic <= 249.0f)
             nextDistSpellic += 1.0f;
 
           char prompt[20];
@@ -720,7 +743,7 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextTempoStart > 0.1f)
+          if (nextTempoStart >= 0.1f)
             nextTempoStart -= 0.1f;
     
           char prompt[20];
@@ -730,7 +753,7 @@ void loop()
         break;
         case BTN_2_RELEASE:
         {
-          if (nextTempoStart < 249.9f)
+          if (nextTempoStart <= 249.9f)
             nextTempoStart += 0.1f;
     
           char prompt[20];
@@ -740,7 +763,7 @@ void loop()
         break;
         case BTN_3_RELEASE:
         {
-          if (nextTempoStart > 1.0f)
+          if (nextTempoStart >= 1.0f)
             nextTempoStart -= 1.0f;   
     
           char prompt[20];
@@ -750,7 +773,7 @@ void loop()
         break;
         case BTN_4_RELEASE:
         {
-          if (nextTempoStart < 249.0f)
+          if (nextTempoStart <= 249.0f)
             nextTempoStart += 1.0f;
     
           char prompt[20];
