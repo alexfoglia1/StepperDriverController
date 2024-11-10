@@ -215,7 +215,7 @@ void floatToLcdString(char prompt[20], float val)
   int dec = (iVal - (100 * cent)) / 10;
   int uni = iVal % 10;
   sprintf(prompt, "VALORE: %d%d.%d", cent, dec, uni); 
-  Serial.println(prompt);
+  //Serial.println(prompt);
 }
 
 
@@ -625,7 +625,7 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextVel >= 0.1f)
+          if (nextVel > 0.1f)
             nextVel -= 0.1f;
                     
         char prompt[20];
@@ -635,14 +635,9 @@ void loop()
         break;
         case BTN_2_RELEASE:
         {
-          Serial.print("nextVel before: "); Serial.println(nextVel);
           if (nextVel <= 49.9f)
-          {
-            Serial.println("can increment");
             nextVel += 0.1f;
-          }
-            
-            Serial.print("nextVel after: "); Serial.println(nextVel);
+          
           char prompt[20];
           floatToLcdString(prompt, nextVel);
           lcdPrint(prompt);            
@@ -689,6 +684,8 @@ void loop()
         {
           if (nextDistSpellic >= 0.1f)
             nextDistSpellic -= 0.1f;
+          else if (nextDistSpellic < 0.1f)
+            nextDistSpellic = 0.0f;
     
           char prompt[20];
           floatToLcdString(prompt, nextDistSpellic);
@@ -745,6 +742,8 @@ void loop()
         {
           if (nextTempoStart >= 0.1f)
             nextTempoStart -= 0.1f;
+          else if (nextTempoStart < 0.1f)
+            nextTempoStart = 0.0f;
     
           char prompt[20];
           floatToLcdString(prompt, nextTempoStart);
