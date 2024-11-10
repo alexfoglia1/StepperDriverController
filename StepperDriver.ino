@@ -24,10 +24,6 @@ LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars
 #define BTN_LONG_PRESSURE_MILLIS 1000
 #define BACKLIGHT_TIMEOUT_MILLIS 5000
 
-#define MIN_DELAY_MICROS 500
-#define MAX_DELAY_MICROS 10000
-#define STOP_DELAY_MILLIS 1000
-
 #define MAX_VEL_INT 500
 #define EEPROM_ADDR 0
 
@@ -42,10 +38,13 @@ typedef union
     float velErog;
     float distSpellic;
     float tempoStart;
-    uint32_t ctrlMode; 
+    uint32_t ctrlMode;
+    uint32_t minDelayMicros;
+    uint32_t maxDelayMicros;
+    uint8_t curDirection;
     uint8_t checksum;
   }__attribute__((packed)) Values;
-  byte Bytes[17];
+  byte Bytes[26];
 } EEPROM_IMG;
 
 
@@ -88,13 +87,12 @@ bool EEPROM_UPDATE = false;
 const int EEPROM_SIZE = sizeof(EEPROM_IMG);
 const int STOP_TIME = 100;
 int stepCount = 0;
-int curDirection = 0;
 int buttonStates[4] = {0, 0, 0, 0};
 int buttonFirstPressure[4] = {0, 0, 0, 0};
 int buttonLastPressure[4] = {0, 0, 0, 0};
 int ignoreRelease[4] = {0, 0, 0, 0};
 EEPROM_IMG eepromParams;
-EEPROM_IMG eepromDefaults = {25.0f, 10.0f, 10.0f, MODE_AUTO, 0};
+EEPROM_IMG eepromDefaults = {25.0f, 10.0f, 10.0f, MODE_AUTO, 500, 10000, 0};
 float nextVel = 25.0f;
 float nextDistSpellic = 10.0f;
 float nextTempoStart = 10.0f;
@@ -145,6 +143,11 @@ void readEepromParams()
   //Serial.print("EEPROM tempoStart: "); Serial.println(eepromParams.Values.tempoStart);
   //Serial.print("EEPROM ctrlMode: "); Serial.println(eepromParams.Values.ctrlMode);
   //Serial.print("EEPROM checksum: "); Serial.println(eepromParams.Values.checksum);  
+  
+  //Serial.print("EEPROM minDelay: "); Serial.println(eepromParams.Values.minDelayMicros);
+  //Serial.print("EEPROM maxDelay: "); Serial.println(eepromParams.Values.maxDelayMicros);  
+  //Serial.print("EEPROM curDirection: "); Serial.println(eepromParams.Values.curDirection);  
+  
   byte curChecksum = checksum(eepromParams.Bytes, EEPROM_SIZE - 1);
   //Serial.print("Calculated checksum: "); Serial.println(curChecksum);
 
@@ -152,6 +155,11 @@ void readEepromParams()
   {
     memcpy(eepromParams.Bytes, eepromDefaults.Bytes, EEPROM_SIZE);
     writeEepromParams();    
+  }
+
+  for (int i = 0; i < MAX_VEL_INT + 1; i++)
+  {
+    VEL_TO_STEP_DELAY[MAX_VEL_INT - i] = map(i, 0, MAX_VEL_INT, eepromParams.Values.minDelayMicros, eepromParams.Values.maxDelayMicros);
   }
 }
 
@@ -414,15 +422,6 @@ void setup()
   pinMode(STEP, OUTPUT);
   pinMode(DIR, OUTPUT);
   motorPower(false);
-  //digitalWrite(DIR, curDirection);
-  if (curDirection)
-  {
-    PORTB |= DIR_MASK;
-  }
-  else
-  {
-    PORTB &= DIR_MASK;
-  }
   
 
   lcd.init();
@@ -437,15 +436,15 @@ void setup()
   lcd.print("  AUTOMAZIONE    ");
     
   readEepromParams();
-
-  for (int i = 0; i < MAX_VEL_INT + 1; i++)
+  
+  if (eepromParams.Values.curDirection)
   {
-    VEL_TO_STEP_DELAY[MAX_VEL_INT - i] = map(i, 0, MAX_VEL_INT, MIN_DELAY_MICROS, MAX_DELAY_MICROS);
+    PORTB |= DIR_MASK;
   }
-  //for (int i = 0; i < MAX_VEL_INT + 1; i++)
-  //{
-      //Serial.print("USER VEL: "); Serial.print(i/10.0f) + Serial.print(" -> DELAY: "); Serial.println(VEL_TO_STEP_DELAY[i]);
-  //}
+  else
+  {
+    PORTB &= DIR_MASK;
+  }
 
   delay(3000);
   lcdClearDisplay();
@@ -799,7 +798,7 @@ void loop()
   }
   
   long deltaMicros = micros() - t0;
-  long toWait = MIN_DELAY_MICROS - deltaMicros;
+  long toWait = eepromParams.Values.minDelayMicros - deltaMicros;
   if (toWait > 0)
   {
     delayMicroseconds(toWait);
