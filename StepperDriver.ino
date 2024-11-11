@@ -2,6 +2,9 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 
+#include "EEPROM_IMG.h"
+
+
 LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
 #define RESET 12
@@ -30,22 +33,6 @@ LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars
 #define LCD_BLANK_LINE "                    "
 
 #define TOGGLE(val)(val > 0 ? 0 : 1)
-
-typedef union
-{
-  struct
-  {
-    float velErog;
-    float distSpellic;
-    float tempoStart;
-    uint32_t ctrlMode;
-    uint32_t minDelayMicros;
-    uint32_t maxDelayMicros;
-    uint8_t curDirection;
-    uint8_t checksum;
-  }__attribute__((packed)) Values;
-  byte Bytes[26];
-} EEPROM_IMG;
 
 
 typedef enum
@@ -84,8 +71,9 @@ typedef enum
 int VEL_TO_STEP_DELAY[MAX_VEL_INT + 1];
 
 bool EEPROM_UPDATE = false;
-const int EEPROM_SIZE = sizeof(EEPROM_IMG);
-const int STOP_TIME = 100;
+
+bool lcdBlink = false;
+int lcdBlinkTime = 0;
 int stepCount = 0;
 int buttonStates[4] = {0, 0, 0, 0};
 int buttonFirstPressure[4] = {0, 0, 0, 0};
@@ -99,8 +87,8 @@ float nextTempoStart = 10.0f;
 int lastUserInput = 0;
 UserState userState = MAIN_MENU;
 int menuIndex = 0;
-const char* menuLabels[3] = {"VEL. EROGAZIONE",
-                             "DIST. SPELLIC.",
+const char* menuLabels[3] = {"VEL. EROGA.",
+                             "DIST. SPEL.",
                              "TEMPO START",
                             };
 char lcdLastPrint[20];
@@ -167,11 +155,10 @@ void lcdPrint(char* prompt)
 {
   if (strncmp(prompt, lcdLastPrint, min(strlen(prompt), 20)) != 0)
   {
-    lcd.setCursor(0, 0);
-    lcd.print(LCD_BLANK_LINE);
-    lcd.setCursor(0, 0);
-    lcd.print(prompt);
+    memset(lcdLastPrint, ' ', 20);
     memcpy(lcdLastPrint, prompt, min(strlen(prompt), 20));
+    lcd.setCursor(0, 0);
+    lcd.print(lcdLastPrint);
   }
 }
 
@@ -188,6 +175,7 @@ void lcdPrintMode()
     lcd.setCursor(0, 1);
     lcd.print(prompt);
     memcpy(lcdLastMode, prompt, min(strlen(prompt), 20));
+    lcdBlink = false;
   }
   
 }
@@ -199,10 +187,10 @@ void lcdClearMode()
   if (strncmp(prompt, lcdLastMode, min(strlen(prompt), 20)) != 0)
   {
     lcd.setCursor(0, 1);
-    lcd.print(LCD_BLANK_LINE);
-    lcd.setCursor(0, 1);
     lcd.print(prompt);
     memcpy(lcdLastMode, prompt, min(strlen(prompt), 20));
+    lcdBlink = true;
+    lcdBlinkTime = millis();
   }
 }
 
@@ -215,14 +203,14 @@ void lcdClearDisplay()
 }
 
 
-void floatToLcdString(char prompt[20], float val)
+void floatToLcdString(const char* label, char prompt[20], float val)
 {
   int iVal = (int) round(10.0f * val);
   memset(prompt, ' ', 20);
   int cent = iVal / 100;
   int dec = (iVal - (100 * cent)) / 10;
   int uni = iVal % 10;
-  sprintf(prompt, "VALORE: %d%d.%d", cent, dec, uni); 
+  sprintf(prompt, "%s %d%d.%d", label, cent, dec, uni); 
   //Serial.println(prompt);
 }
 
@@ -409,7 +397,16 @@ void motorPower(bool powerOn)
   }
 }
 
-
+byte OVERLINE[] = {
+  B11111,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000,
+  B00000
+};
 void setup()
 {
   Serial.begin(115200);
@@ -422,9 +419,10 @@ void setup()
   pinMode(STEP, OUTPUT);
   pinMode(DIR, OUTPUT);
   motorPower(false);
-  
 
   lcd.init();
+  lcd.createChar(0, OVERLINE);
+  
   lcdClearDisplay();
   lcd.backlight();
   isBacklight = true;
@@ -443,10 +441,10 @@ void setup()
   }
   else
   {
-    PORTB &= DIR_MASK;
+    PORTB &= ~DIR_MASK;
   }
 
-  delay(3000);
+  //delay(3000);
   lcdClearDisplay();
 
   long t0 = micros();
@@ -542,12 +540,39 @@ void loop()
     memcpy(buttonFirstPressure, buttonLastPressure, buttonsToIgnore * sizeof(int));
   }
 
+  if (lcdBlink)
+  {
+    int blinkDelta = curMillis - lcdBlinkTime;
+    Serial.println(blinkDelta);
+    if (blinkDelta < 500)
+    {
+      for (int i = 12; i < 16; i++)
+      {
+        lcd.setCursor(i, 1);
+        lcd.write(byte(0));
+      }
+    }
+    else if (blinkDelta >= 500 && blinkDelta < 1000)
+    {
+      lcd.setCursor(12, 1);
+      lcd.print("    ");
+    }
+    else
+    {
+      lcdBlinkTime = curMillis;
+    }
+  }
 
+  char prompt[20];
   switch (userState)
   {
     case MAIN_MENU:
     {
-      lcdPrint(menuLabels[menuIndex]);
+      
+      floatToLcdString(menuLabels[menuIndex], prompt, menuIndex == 0 ? eepromParams.Values.velErog :
+                                                      menuIndex == 1 ? eepromParams.Values.distSpellic :
+                                                      eepromParams.Values.tempoStart);
+      lcdPrint(prompt);   
       lcdPrintMode();
       switch (e)
       {
@@ -561,17 +586,11 @@ void loop()
         {        
           if (menuIndex == 0)
           {
-            char prompt[20];
-            floatToLcdString(prompt, eepromParams.Values.velErog);
-            lcdPrint(prompt);
             nextVel = eepromParams.Values.velErog;
             userState = MENU_VEL;  
           }
           else if (menuIndex != 3)
           {
-            char prompt[20];
-            floatToLcdString(prompt, menuIndex == 1 ? eepromParams.Values.distSpellic : eepromParams.Values.tempoStart);
-            lcdPrint(prompt);
             nextDistSpellic = eepromParams.Values.distSpellic;
             nextTempoStart = eepromParams.Values.tempoStart;
             userState = menuIndex == 1 ? MENU_DIST_SPELLIC : MENU_START;
@@ -618,8 +637,7 @@ void loop()
         {
           eepromParams.Values.velErog = nextVel;
           EEPROM_UPDATE = true;
-          userState = MAIN_MENU;       
-          lcdPrint(menuLabels[menuIndex]);
+          userState = MAIN_MENU;
         }
         break;
         case BTN_1_RELEASE:
@@ -627,8 +645,7 @@ void loop()
           if (nextVel > 0.1f)
             nextVel -= 0.1f;
                     
-        char prompt[20];
-        floatToLcdString(prompt, nextVel);
+        floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
         lcdPrint(prompt);      
         }
         break;
@@ -637,8 +654,7 @@ void loop()
           if (nextVel <= 49.9f)
             nextVel += 0.1f;
           
-          char prompt[20];
-          floatToLcdString(prompt, nextVel);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);            
         }
         break;
@@ -647,8 +663,7 @@ void loop()
           if (nextVel >= 1.0f)
             nextVel -= 1.0f;
 
-          char prompt[20];
-          floatToLcdString(prompt, nextVel);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);                      
         }
         break;
@@ -657,8 +672,7 @@ void loop()
           if (nextVel <= 49.0f)
             nextVel += 1.0f;
 
-          char prompt[20];
-          floatToLcdString(prompt, nextVel);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);                
         }
         break;
@@ -676,7 +690,6 @@ void loop()
           eepromParams.Values.distSpellic = nextDistSpellic;
           EEPROM_UPDATE = true;
           userState = MAIN_MENU;                 
-          lcdPrint(menuLabels[menuIndex]);
         }
         break;
         case BTN_1_RELEASE:
@@ -686,8 +699,7 @@ void loop()
           else if (nextDistSpellic < 0.1f)
             nextDistSpellic = 0.0f;
     
-          char prompt[20];
-          floatToLcdString(prompt, nextDistSpellic);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);                  
         }
         break;
@@ -696,8 +708,7 @@ void loop()
           if (nextDistSpellic <= 249.9f)
             nextDistSpellic += 0.1f;
 
-          char prompt[20];
-          floatToLcdString(prompt, nextDistSpellic);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);             
         }
         break;
@@ -706,8 +717,7 @@ void loop()
           if (nextDistSpellic >= 1.0f)
             nextDistSpellic -= 1.0f;
 
-          char prompt[20];
-          floatToLcdString(prompt, nextDistSpellic);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);                
         }
         break;
@@ -716,8 +726,7 @@ void loop()
           if (nextDistSpellic <= 249.0f)
             nextDistSpellic += 1.0f;
 
-          char prompt[20];
-          floatToLcdString(prompt, nextDistSpellic);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);             
         }
         break;
@@ -734,7 +743,6 @@ void loop()
           eepromParams.Values.tempoStart = nextTempoStart;
           EEPROM_UPDATE = true;
           userState = MAIN_MENU;             
-          lcdPrint(menuLabels[menuIndex]);
         }
         break;
         case BTN_1_RELEASE:
@@ -744,8 +752,7 @@ void loop()
           else if (nextTempoStart < 0.1f)
             nextTempoStart = 0.0f;
     
-          char prompt[20];
-          floatToLcdString(prompt, nextTempoStart);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);                 
         }
         break;
@@ -754,8 +761,7 @@ void loop()
           if (nextTempoStart <= 249.9f)
             nextTempoStart += 0.1f;
     
-          char prompt[20];
-          floatToLcdString(prompt, nextTempoStart);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);              
         }
         break;
@@ -764,8 +770,7 @@ void loop()
           if (nextTempoStart >= 1.0f)
             nextTempoStart -= 1.0f;   
     
-          char prompt[20];
-          floatToLcdString(prompt, nextTempoStart);
+          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);                 
         }
         break;
@@ -773,9 +778,8 @@ void loop()
         {
           if (nextTempoStart <= 249.0f)
             nextTempoStart += 1.0f;
-    
-          char prompt[20];
-          floatToLcdString(prompt, nextTempoStart);
+
+          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);              
         }
         break;
