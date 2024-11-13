@@ -87,9 +87,9 @@ float nextTempoStart = 10.0f;
 int lastUserInput = 0;
 UserState userState = MAIN_MENU;
 int menuIndex = 0;
-const char* menuLabels[3] = {"VEL. EROGA.",
-                             "DIST. SPEL.",
-                             "TEMPO START",
+const char* menuLabels[3] = {"VELOC EROG",
+                             "DIST SPELL",
+                             "TEMP START",
                             };
 char lcdLastPrint[20];
 char lcdLastMode[20];
@@ -97,6 +97,8 @@ bool isBacklight = false;
 int millisStart = 0;
 bool isStepperMoving = false;
 bool isFirstLoop = true;
+int countBtn3Pressed = 0;
+int countBtn4Pressed = 0;
 
 byte checksum(byte* bytes, int nBytes)
 {
@@ -149,6 +151,13 @@ void readEepromParams()
   {
     VEL_TO_STEP_DELAY[MAX_VEL_INT - i] = map(i, 0, MAX_VEL_INT, eepromParams.Values.minDelayMicros, eepromParams.Values.maxDelayMicros);
   }
+}
+
+int getLastBkinkColumnsByMenuIndex(int menuIndex)
+{
+  if (menuIndex == 0) return 15;
+  else if (menuIndex == 1) return nextDistSpellic > 99.9f ? 16 : 15;
+  else return nextTempoStart > 99.9f ? 16 : 15;
 }
 
 void lcdPrint(char* prompt)
@@ -543,10 +552,11 @@ void loop()
   if (lcdBlink)
   {
     int blinkDelta = curMillis - lcdBlinkTime;
-    Serial.println(blinkDelta);
+    int lastColumn = getLastBkinkColumnsByMenuIndex(menuIndex);
+    //Serial.println(blinkDelta);
     if (blinkDelta < 500)
     {
-      for (int i = 12; i < 16; i++)
+      for (int i = 11; i < lastColumn; i++)
       {
         lcd.setCursor(i, 1);
         lcd.write(byte(0));
@@ -554,8 +564,8 @@ void loop()
     }
     else if (blinkDelta >= 500 && blinkDelta < 1000)
     {
-      lcd.setCursor(12, 1);
-      lcd.print("    ");
+      lcd.setCursor(11, 1);
+      lcd.print("     ");
     }
     else
     {
@@ -644,33 +654,59 @@ void loop()
         {
           if (nextVel > 0.1f)
             nextVel -= 0.1f;
+          else
+            nextVel = 50.0f;
                     
-        floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
-        lcdPrint(prompt);      
+          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
+          lcdPrint(prompt);      
         }
         break;
         case BTN_2_RELEASE:
         {
           if (nextVel <= 49.9f)
             nextVel += 0.1f;
+          else 
+            nextVel = 0.1f;
           
           floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);            
         }
         break;
+        case BTN_3_PRESSED:
+        {
+          countBtn3Pressed += 1;
+          if (countBtn3Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_3_RELEASE:
         {
+          countBtn3Pressed = 0;
           if (nextVel >= 1.0f)
             nextVel -= 1.0f;
+          else
+            nextVel = 50.0f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);                      
         }
         break;
+        case BTN_4_PRESSED:
+        {
+          countBtn4Pressed += 1;
+          if (countBtn4Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_4_RELEASE:
         {
+          countBtn4Pressed = 0;
           if (nextVel <= 49.0f)
             nextVel += 1.0f;
+          else
+            nextVel = 0.1f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
           lcdPrint(prompt);                
@@ -707,24 +743,48 @@ void loop()
         {
           if (nextDistSpellic <= 249.9f)
             nextDistSpellic += 0.1f;
+          else
+            nextDistSpellic = 0.0f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);             
         }
         break;
+        case BTN_3_PRESSED:
+        {
+          countBtn3Pressed += 1;
+          if (countBtn3Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_3_RELEASE:
         {
+          countBtn3Pressed = 0;
           if (nextDistSpellic >= 1.0f)
             nextDistSpellic -= 1.0f;
+          else
+            nextDistSpellic = 250.0f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);                
         }
         break;
+        case BTN_4_PRESSED:
+        {
+          countBtn4Pressed += 1;
+          if (countBtn4Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_4_RELEASE:
         {
+          countBtn4Pressed = 0;
           if (nextDistSpellic <= 249.0f)
             nextDistSpellic += 1.0f;
+          else
+            nextDistSpellic = 0.0f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
           lcdPrint(prompt);             
@@ -749,8 +809,8 @@ void loop()
         {
           if (nextTempoStart >= 0.1f)
             nextTempoStart -= 0.1f;
-          else if (nextTempoStart < 0.1f)
-            nextTempoStart = 0.0f;
+          else
+            nextTempoStart = 250.0f;
     
           floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);                 
@@ -760,24 +820,48 @@ void loop()
         {
           if (nextTempoStart <= 249.9f)
             nextTempoStart += 0.1f;
+          else
+            nextTempoStart = 0.0f;
     
           floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);              
         }
         break;
+        case BTN_3_PRESSED:
+        {
+          countBtn3Pressed += 1;
+          if (countBtn3Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_3_RELEASE:
         {
+          countBtn3Pressed = 0;
           if (nextTempoStart >= 1.0f)
-            nextTempoStart -= 1.0f;   
+            nextTempoStart -= 1.0f;
+          else
+            nextTempoStart = 250.0f;
     
           floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);                 
         }
         break;
+        case BTN_4_PRESSED:
+        {
+          countBtn4Pressed += 1;
+          if (countBtn4Pressed < 20)
+          {
+            break;
+          }
+        }
         case BTN_4_RELEASE:
         {
+          countBtn4Pressed = 0;
           if (nextTempoStart <= 249.0f)
             nextTempoStart += 1.0f;
+          else
+            nextTempoStart = 0.0f;
 
           floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
           lcdPrint(prompt);              
@@ -803,8 +887,9 @@ void loop()
   
   long deltaMicros = micros() - t0;
   long toWait = eepromParams.Values.minDelayMicros - deltaMicros;
-  if (toWait > 0)
+  if (toWait > 0 && isStepperMoving)
   {
+    Serial.println("wait\n");
     delayMicroseconds(toWait);
   }
 
