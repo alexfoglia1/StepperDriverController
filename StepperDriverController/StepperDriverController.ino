@@ -28,6 +28,7 @@
 #define BACKLIGHT_TIMEOUT_MILLIS 5000
 
 #define MAX_VEL_INT 500
+#define MAX_TEMPO_INT 2500
 #define EEPROM_ADDR 0
 
 #define LCD_BLANK_LINE "                    "
@@ -38,7 +39,8 @@ typedef enum
   MAIN_MENU = 0,
   MENU_VEL,
   MENU_DIST_SPELLIC,
-  MENU_START
+  MENU_START,
+  MENU_IGNORE_F1
 } UserState;
 
 
@@ -77,16 +79,18 @@ int buttonFirstPressure[4] = {0, 0, 0, 0};
 int buttonLastPressure[4] = {0, 0, 0, 0};
 int ignoreRelease[4] = {0, 0, 0, 0};
 EEPROM_IMG eepromParams;
-EEPROM_IMG eepromDefaults = {46.0f, 10.0f, 10.0f, MODE_AUTO, 485, 10000, 0, 0};
-float nextVel = 25.0f;
-float nextDistSpellic = 10.0f;
-float nextTempoStart = 10.0f;
+EEPROM_IMG eepromDefaults = {460, 1000, 1000, 100, MODE_AUTO, 300, 5000, 0, 0};
+uint16_t nextVel = 460;
+uint16_t nextDistSpellic = 1000;
+uint16_t nextTempoStart = 1000;
+uint16_t nextIgnoreF1 = 10;
 int lastUserInput = 0;
 UserState userState = MAIN_MENU;
 int menuIndex = 0;
-const char* menuLabels[3] = {"VELOC EROG",
+const char* menuLabels[4] = {"VELO EROGA ",
                              "DIST SPELL",
                              "TEMP START",
+                             "IGNR FOTC1"
                             };
 char lcdLastPrint[20];
 char lcdLastMode[20];
@@ -161,14 +165,6 @@ void readEepromParams()
 }
 
 
-int getLastBlinkColumnsByMenuIndex(int menuIndex)
-{
-  if (menuIndex == 0) return 15;
-  else if (menuIndex == 1) return nextDistSpellic > 99.9f ? 16 : 15;
-  else return nextTempoStart > 99.9f ? 16 : 15;
-}
-
-
 void lcdPrint(char* prompt)
 {
   if (strncmp(prompt, lcdLastPrint, min(strlen(prompt), 20)) != 0)
@@ -221,14 +217,17 @@ void lcdClearDisplay()
 }
 
 
-void floatToLcdString(const char* label, char prompt[20], float val)
+void inputValueToLcdString(const char* label, char prompt[20], uint16_t n, int nDec)
 {
-  int iVal = (int) round(10.0f * val);
   memset(prompt, ' ', 20);
-  int cent = iVal / 100;
-  int dec = (iVal - (100 * cent)) / 10;
-  int uni = iVal % 10;
-  sprintf(prompt, "%s %d%d.%d", label, cent, dec, uni); 
+  uint16_t units = n % 10;
+  uint16_t tens = (n / 10) % 10;
+  uint16_t hundreds = (n / 100) % 10;
+  uint16_t thousands = (n / 1000) % 10;
+  if (nDec == 1)
+    sprintf(prompt, "%s %d%d.%d", label, hundreds, tens, units); 
+  else
+    sprintf(prompt, "%s %d%d.%d%d", label, thousands, hundreds, tens, units); 
   //Serial.println(prompt);
 }
 
@@ -325,8 +324,18 @@ void readUserButton(int curMillis)
 
 int readPhoto(bool* photo1, bool* photo2)
 {
-  *photo1 = (digitalRead(PHOTO_1) == HIGH);
-  *photo2 = (digitalRead(PHOTO_2) == HIGH);
+  //if (Serial.available())
+  //{
+  //  int ser = Serial.read();
+  //  *photo1 = ser == '1';
+  //  *photo2 = ser == '2';
+  //  Serial.print("Photo1: "); Serial.print(*photo1); Serial.print("\tPhoto2: "); Serial.println(*photo2);
+  //}
+  //else
+  //{
+    *photo1 = (digitalRead(PHOTO_1) == HIGH);
+    *photo2 = (digitalRead(PHOTO_2) == HIGH);
+  //}
 }
 
 
@@ -474,11 +483,8 @@ void setup()
     PORTB &= ~DIR_MASK;
   }
 
-  //delay(3000);
+  delay(2500);
   lcdClearDisplay();
-
-  long t0 = micros();
-  millisStart = (int)(t0 / 1000L);
 }
 
 
@@ -486,18 +492,19 @@ void automatic(int curMillis)
 {
   readPhoto(&isPhoto1, &isPhoto2);
 
-  //Serial.print("F1: "); Serial.print(isPhoto1);
-  //Serial.print("\tF2: "); Serial.println(isPhoto2);
-
   int startDelta = startReceived ? (curMillis - millisStart) : 0;
   int stopDelta  = stopReceived ? (curMillis - millisStop) : 0;
-  int startDelayMillis = (int)(eepromParams.Values.tempoStart * 100);
-  int stopDelayMillis  = (int)(eepromParams.Values.distSpellic * 100);
+  int startDelayMillis   = eepromParams.Values.tempoStart;
+  int stopDelayMillis    = eepromParams.Values.distSpellic;
+  int ignorePhoto1Millis = eepromParams.Values.ignoreF1;  
 
   if (isPhoto1 && !startReceived && !isStepperMoving)
   {
-    millisStart = curMillis;
-    startReceived = true;
+    if (((curMillis - millisStart) >= ignorePhoto1Millis) || (millisStart == 0))
+    {
+      millisStart = curMillis;
+      startReceived = true;
+    }
   }
 
   if (isPhoto2 && !stopReceived && isStepperMoving)
@@ -506,11 +513,6 @@ void automatic(int curMillis)
     stopReceived = true;
   }
 
-  //if (startReceived)
-  //{
-  //  Serial.print("startDelta: "); Serial.print(startDelta); Serial.print(" ms"); Serial.print("\tstartDelayMillis: "); Serial.print(startDelayMillis); Serial.println(" ms");
-  //}
-  
   if (startReceived && startDelta >= startDelayMillis)
   {
     isStepperMoving = true;
@@ -525,7 +527,6 @@ void automatic(int curMillis)
 
     motorPower(false);
   }
-
 
   if (isStepperMoving)
   {
@@ -547,7 +548,9 @@ void loop()
   {
     if (isStepperMoving)
     {
-      motorStep(VEL_TO_STEP_DELAY[(int)(eepromParams.Values.velErog) * 10]);
+      int stepDelay = VEL_TO_STEP_DELAY[(int)(eepromParams.Values.velErog)];
+      //Serial.println(stepDelay);
+      motorStep(stepDelay);
     }
     else
     {
@@ -591,11 +594,15 @@ void loop()
   if (lcdBlink)
   {
     int blinkDelta = curMillis - lcdBlinkTime;
-    int lastColumn = getLastBlinkColumnsByMenuIndex(menuIndex);
     //Serial.println(blinkDelta);
+    int startColumn = 11;
+    if (menuIndex == 0)
+    {
+      startColumn = 12;
+    }
     if (blinkDelta < 500)
     {
-      for (int i = 11; i < lastColumn; i++)
+      for (int i = startColumn; i < 16; i++)
       {
         lcd.setCursor(i, 1);
         lcd.write(byte(0));
@@ -618,9 +625,10 @@ void loop()
     case MAIN_MENU:
     {
       
-      floatToLcdString(menuLabels[menuIndex], prompt, menuIndex == 0 ? eepromParams.Values.velErog :
+      inputValueToLcdString(menuLabels[menuIndex], prompt, menuIndex == 0 ? eepromParams.Values.velErog :
                                                       menuIndex == 1 ? eepromParams.Values.distSpellic :
-                                                      eepromParams.Values.tempoStart);
+                                                      menuIndex == 2 ? eepromParams.Values.tempoStart  :
+                                                      eepromParams.Values.ignoreF1, menuIndex == 0 ? 1 : 2);
       lcdPrint(prompt);   
       lcdPrintMode();
       switch (e)
@@ -628,22 +636,19 @@ void loop()
         case BTN_1_RELEASE:
         {
           menuIndex += 1;
-          menuIndex %= 3;
+          menuIndex %= 4;
         }
         break;
         case BTN_2_RELEASE:
         {        
-          if (menuIndex == 0)
-          {
             nextVel = eepromParams.Values.velErog;
-            userState = MENU_VEL;  
-          }
-          else if (menuIndex != 3)
-          {
             nextDistSpellic = eepromParams.Values.distSpellic;
             nextTempoStart = eepromParams.Values.tempoStart;
-            userState = menuIndex == 1 ? MENU_DIST_SPELLIC : MENU_START;
-          }
+            nextIgnoreF1 = eepromParams.Values.ignoreF1;
+            userState = menuIndex == 0 ? MENU_VEL :
+                        menuIndex == 1 ? MENU_DIST_SPELLIC :
+                        menuIndex == 2 ? MENU_START :
+                        MENU_IGNORE_F1;
         }
         break;
         case BTN_3_PRESSED:
@@ -710,23 +715,23 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextVel > 0.1f)
-            nextVel -= 0.1f;
+          if (nextVel > 1)
+            nextVel -= 1;
           else
-            nextVel = 50.0f;
+            nextVel = MAX_VEL_INT;
                     
-          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextVel, 1);
           lcdPrint(prompt);      
         }
         break;
         case BTN_2_RELEASE:
         {
-          if (nextVel <= 49.9f)
-            nextVel += 0.1f;
+          if (nextVel < MAX_VEL_INT)
+            nextVel += 1;
           else 
-            nextVel = 0.1f;
+            nextVel = 1;
           
-          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextVel, 1);
           lcdPrint(prompt);            
         }
         break;
@@ -741,12 +746,12 @@ void loop()
         case BTN_3_RELEASE:
         {
           countBtn3Pressed = 0;
-          if (nextVel >= 1.0f)
-            nextVel -= 1.0f;
+          if (nextVel > 10)
+            nextVel -= 10;
           else
-            nextVel = 50.0f;
+            nextVel = MAX_VEL_INT;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextVel, 1);
           lcdPrint(prompt);                      
         }
         break;
@@ -761,12 +766,12 @@ void loop()
         case BTN_4_RELEASE:
         {
           countBtn4Pressed = 0;
-          if (nextVel <= 49.0f)
-            nextVel += 1.0f;
+          if (nextVel <= MAX_VEL_INT - 10)
+            nextVel += 10;
           else
-            nextVel = 0.1f;
+            nextVel = 1;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextVel);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextVel, 1);
           lcdPrint(prompt);                
         }
         break;
@@ -788,29 +793,29 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextDistSpellic >= 0.1f)
-            nextDistSpellic -= 0.1f;
-          else if (nextDistSpellic < 0.1f)
-            nextDistSpellic = 0.0f;
+          if (nextDistSpellic > 1)
+            nextDistSpellic -= 1;
+          else
+            nextDistSpellic = MAX_TEMPO_INT;
     
-          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic, 2);
           lcdPrint(prompt);                  
         }
         break;
         case BTN_2_RELEASE:
         {
-          if (nextDistSpellic <= 249.9f)
-            nextDistSpellic += 0.1f;
+          if (nextDistSpellic < MAX_TEMPO_INT)
+            nextDistSpellic += 1;
           else
-            nextDistSpellic = 0.0f;
+            nextDistSpellic = 0;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic, 2);
           lcdPrint(prompt);             
         }
         break;
         case BTN_3_PRESSED:
         {
-          countBtn3Pressed += 1;
+          countBtn3Pressed += 10;
           if (countBtn3Pressed < 20)
           {
             break;
@@ -819,12 +824,12 @@ void loop()
         case BTN_3_RELEASE:
         {
           countBtn3Pressed = 0;
-          if (nextDistSpellic >= 1.0f)
-            nextDistSpellic -= 1.0f;
+          if (nextDistSpellic > 10)
+            nextDistSpellic -= 10;
           else
-            nextDistSpellic = 250.0f;
+            nextDistSpellic = MAX_TEMPO_INT;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic, 2);
           lcdPrint(prompt);                
         }
         break;
@@ -839,12 +844,12 @@ void loop()
         case BTN_4_RELEASE:
         {
           countBtn4Pressed = 0;
-          if (nextDistSpellic <= 249.0f)
-            nextDistSpellic += 1.0f;
+          if (nextDistSpellic <= MAX_TEMPO_INT - 10)
+            nextDistSpellic += 10;
           else
-            nextDistSpellic = 0.0f;
+            nextDistSpellic = 0;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextDistSpellic, 2);
           lcdPrint(prompt);             
         }
         break;
@@ -865,23 +870,23 @@ void loop()
         break;
         case BTN_1_RELEASE:
         {
-          if (nextTempoStart >= 0.1f)
-            nextTempoStart -= 0.1f;
+          if (nextTempoStart > 1)
+            nextTempoStart -= 1;
           else
-            nextTempoStart = 250.0f;
+            nextTempoStart = MAX_TEMPO_INT;
     
-          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextTempoStart, 2);
           lcdPrint(prompt);                 
         }
         break;
         case BTN_2_RELEASE:
         {
-          if (nextTempoStart <= 249.9f)
-            nextTempoStart += 0.1f;
+          if (nextTempoStart < MAX_TEMPO_INT)
+            nextTempoStart += 1;
           else
-            nextTempoStart = 0.0f;
+            nextTempoStart = 0;
     
-          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextTempoStart, 2);
           lcdPrint(prompt);              
         }
         break;
@@ -896,12 +901,12 @@ void loop()
         case BTN_3_RELEASE:
         {
           countBtn3Pressed = 0;
-          if (nextTempoStart >= 1.0f)
-            nextTempoStart -= 1.0f;
+          if (nextTempoStart > 10)
+            nextTempoStart -= 10;
           else
-            nextTempoStart = 250.0f;
+            nextTempoStart = MAX_TEMPO_INT;
     
-          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextTempoStart, 2);
           lcdPrint(prompt);                 
         }
         break;
@@ -916,19 +921,96 @@ void loop()
         case BTN_4_RELEASE:
         {
           countBtn4Pressed = 0;
-          if (nextTempoStart <= 249.0f)
-            nextTempoStart += 1.0f;
+          if (nextTempoStart <= MAX_TEMPO_INT - 10)
+            nextTempoStart += 10;
           else
-            nextTempoStart = 0.0f;
+            nextTempoStart = 0;
 
-          floatToLcdString(menuLabels[menuIndex], prompt, nextTempoStart);
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextTempoStart, 2);
           lcdPrint(prompt);              
         }
         break;
         default: break;
       }      
     }
-    break;        
+    break;
+    case MENU_IGNORE_F1:
+    {
+      switch (e)
+      {
+        case BTN_1_LONGPRS:
+        {
+          eepromParams.Values.ignoreF1 = nextIgnoreF1;
+          EEPROM_UPDATE = true;
+          userState = MAIN_MENU;             
+        }
+        break;
+        case BTN_1_RELEASE:
+        {
+          if (nextIgnoreF1 > 1)
+            nextIgnoreF1 -= 1;
+          else
+            nextIgnoreF1 = MAX_TEMPO_INT;
+    
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextIgnoreF1, 2);
+          lcdPrint(prompt);                 
+        }
+        break;
+        case BTN_2_RELEASE:
+        {
+          if (nextIgnoreF1 < MAX_TEMPO_INT)
+            nextIgnoreF1 += 1;
+          else
+            nextIgnoreF1 = 0;
+    
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextIgnoreF1, 2);
+          lcdPrint(prompt);              
+        }
+        break;
+        case BTN_3_PRESSED:
+        {
+          countBtn3Pressed += 1;
+          if (countBtn3Pressed < 20)
+          {
+            break;
+          }
+        }
+        case BTN_3_RELEASE:
+        {
+          countBtn3Pressed = 0;
+          if (nextIgnoreF1 > 10)
+            nextIgnoreF1 -= 10;
+          else
+            nextIgnoreF1 = MAX_TEMPO_INT;
+    
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextIgnoreF1, 2);
+          lcdPrint(prompt);                 
+        }
+        break;
+        case BTN_4_PRESSED:
+        {
+          countBtn4Pressed += 1;
+          if (countBtn4Pressed < 20)
+          {
+            break;
+          }
+        }
+        case BTN_4_RELEASE:
+        {
+          countBtn4Pressed = 0;
+          if (nextIgnoreF1 <= MAX_TEMPO_INT - 10)
+            nextIgnoreF1 += 10;
+          else
+            nextIgnoreF1 = 0;
+
+          inputValueToLcdString(menuLabels[menuIndex], prompt, nextIgnoreF1, 2);
+          lcdPrint(prompt);              
+        }
+        break;
+        default: break;
+      }      
+    }
+    break;      
     default: break;
   }
 
