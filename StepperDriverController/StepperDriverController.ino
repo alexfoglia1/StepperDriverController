@@ -7,10 +7,12 @@
 
 LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
 
-#define RESET 12
-#define SLEEP 11
-#define STEP  10
-#define DIR    9
+#define RESET  12
+#define SLEEP  11
+#define STEP   10
+#define DIR     9
+#define PHOTO_1 7
+#define PHOTO_2 4
 
 #define RESET_MASK B00010000
 #define SLEEP_MASK B00001000
@@ -22,7 +24,7 @@ LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars
 #define BUTTON_2 994
 #define BUTTON_3 1015
 #define BUTTON_4 977
-#define BTN_TOL  5
+#define BTN_TOL  2
 
 #define BTN_LONG_PRESSURE_MILLIS 1000
 #define BACKLIGHT_TIMEOUT_MILLIS 5000
@@ -80,7 +82,7 @@ int buttonFirstPressure[4] = {0, 0, 0, 0};
 int buttonLastPressure[4] = {0, 0, 0, 0};
 int ignoreRelease[4] = {0, 0, 0, 0};
 EEPROM_IMG eepromParams;
-EEPROM_IMG eepromDefaults = {25.0f, 10.0f, 10.0f, MODE_AUTO, 500, 10000, 0};
+EEPROM_IMG eepromDefaults = {46.0f, 10.0f, 10.0f, MODE_AUTO, 485, 10000, 0, 0};
 float nextVel = 25.0f;
 float nextDistSpellic = 10.0f;
 float nextTempoStart = 10.0f;
@@ -95,10 +97,16 @@ char lcdLastPrint[20];
 char lcdLastMode[20];
 bool isBacklight = false;
 int millisStart = 0;
+int millisStop = 0;
 bool isStepperMoving = false;
 bool isFirstLoop = true;
 int countBtn3Pressed = 0;
 int countBtn4Pressed = 0;
+bool isPhoto1 = false;
+bool isPhoto2 = false;
+bool startReceived = false;
+bool stopReceived = false;
+bool btn3PressedOnManual = false;
 
 byte checksum(byte* bytes, int nBytes)
 {
@@ -314,6 +322,13 @@ void readUserButton(int curMillis)
 }
 
 
+int readPhoto(bool* photo1, bool* photo2)
+{
+  *photo1 = (digitalRead(PHOTO_1) == HIGH);
+  *photo2 = (digitalRead(PHOTO_2) == HIGH);
+}
+
+
 UserEvent readUserEvent(int curMillis)
 {
   int oldButtonStates[4];
@@ -416,6 +431,8 @@ byte OVERLINE[] = {
   B00000,
   B00000
 };
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -427,6 +444,9 @@ void setup()
   pinMode(SLEEP, OUTPUT);
   pinMode(STEP, OUTPUT);
   pinMode(DIR, OUTPUT);
+  pinMode(PHOTO_1, INPUT);
+  pinMode(PHOTO_2, INPUT);
+
   motorPower(false);
 
   lcd.init();
@@ -463,30 +483,48 @@ void setup()
 
 void automatic(int curMillis)
 {
-  int curDelta = (curMillis - millisStart);
-  
-  if (curDelta < ((int)(eepromParams.Values.tempoStart) * 100) && !isStepperMoving)
+  readPhoto(&isPhoto1, &isPhoto2);
+
+  //Serial.print("F1: "); Serial.print(isPhoto1);
+  //Serial.print("\tF2: "); Serial.println(isPhoto2);
+
+  int startDelta = startReceived ? (curMillis - millisStart) : 0;
+  int stopDelta  = stopReceived ? (curMillis - millisStop) : 0;
+  int startDelayMillis = (int)(eepromParams.Values.tempoStart * 100);
+  int stopDelayMillis  = (int)(eepromParams.Values.distSpellic * 100);
+
+  if (isPhoto1 && !startReceived && !isStepperMoving)
   {
+    millisStart = curMillis;
+    startReceived = true;
+  }
+
+  if (isPhoto2 && !stopReceived && isStepperMoving)
+  {
+    millisStop = curMillis;
+    stopReceived = true;
+  }
+
+  //if (startReceived)
+  //{
+  //  Serial.print("startDelta: "); Serial.print(startDelta); Serial.print(" ms"); Serial.print("\tstartDelayMillis: "); Serial.print(startDelayMillis); Serial.println(" ms");
+  //}
+  
+  if (startReceived && startDelta >= startDelayMillis)
+  {
+    isStepperMoving = true;
+    startReceived = false;
+
+    motorPower(true);
+  }
+  else if (stopReceived && stopDelta >= stopDelayMillis)
+  {
+    isStepperMoving = false;
+    stopReceived = false;
+
     motorPower(false);
   }
-  else if (curDelta >= ((int)(eepromParams.Values.tempoStart) * 100))
-  {
-    if (!isStepperMoving)
-    {
-      motorPower(true);
-      millisStart = curMillis;
-      isStepperMoving = true;
-    }
-    else
-    {
-      if (curDelta >= ((int)(eepromParams.Values.distSpellic) * 100))
-      {
-        motorPower(false);
-        millisStart = curMillis;
-        isStepperMoving = false;
-      }
-    }
-  }
+
 
   if (isStepperMoving)
   {
@@ -513,13 +551,13 @@ void loop()
     else
     {
       motorPower(false);
-      millisStart = curMillis;
       isStepperMoving = false;
     }
     
   }
   
   UserEvent e = readUserEvent(curMillis);
+
   if (curMillis - lastUserInput >= BACKLIGHT_TIMEOUT_MILLIS && isBacklight)
   {
     if (isFirstLoop)
@@ -607,29 +645,48 @@ void loop()
           }
         }
         break;
+        case BTN_3_PRESSED:
+        {
+          if (eepromParams.Values.ctrlMode == MODE_MANUAL && isStepperMoving)
+          {
+            motorPower(false);
+            btn3PressedOnManual = true;
+          }
+        }
+        break;
         case BTN_3_RELEASE:
         {
           if (eepromParams.Values.ctrlMode == MODE_AUTO)
           {
             motorPower(false);
-            millisStart = curMillis;
             isStepperMoving = false;
+            startReceived = false;
+            stopReceived = false;
             
             eepromParams.Values.ctrlMode = MODE_MANUAL;
             EEPROM_UPDATE = true;
           }
           else
           {
-            isStepperMoving = !isStepperMoving;
-            motorPower(isStepperMoving);
+            if (btn3PressedOnManual)
+            {
+              btn3PressedOnManual = false;
+              isStepperMoving = false;
+            }
+            else
+            {
+              isStepperMoving = true;
+              motorPower(true);
+            }
           }
         }
         break;
         case BTN_4_RELEASE:
         {
           motorPower(false);
-          millisStart = curMillis;
           isStepperMoving = false;
+          startReceived = false;
+          stopReceived = false;
           
           eepromParams.Values.ctrlMode = MODE_AUTO;
           EEPROM_UPDATE = true;
@@ -879,19 +936,20 @@ void loop()
     lcdClearMode();
   }
 
-  if (EEPROM_UPDATE)
+  if (EEPROM_UPDATE && !isStepperMoving)
   {
     writeEepromParams();
     EEPROM_UPDATE = false;
   }
   
+#if 0
   long deltaMicros = micros() - t0;
   long toWait = eepromParams.Values.minDelayMicros - deltaMicros;
   if (toWait > 0 && isStepperMoving)
   {
-    Serial.println("wait\n");
+    Serial.print("wait "); Serial.println(toWait);
     delayMicroseconds(toWait);
   }
-
+#endif
   
 }
