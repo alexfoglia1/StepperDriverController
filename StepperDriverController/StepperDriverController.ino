@@ -530,7 +530,7 @@ void automatic(int curMillis)
 
   if (isStepperMoving)
   {
-    motorStep(VEL_TO_STEP_DELAY[(int)(eepromParams.Values.velErog) * 10]);
+    motorStep(VEL_TO_STEP_DELAY[(int)(eepromParams.Values.velErog)]);
   }
 }
 
