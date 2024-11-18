@@ -5,8 +5,6 @@
 #include "EEPROM_IMG.h"
 
 
-LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars and 2 line display
-
 #define RESET  12
 #define SLEEP  11
 #define STEP   10
@@ -34,8 +32,6 @@ LiquidCrystal_I2C lcd(0x27,20,2);  // set the LCD address to 0x27 for a 16 chars
 
 #define LCD_BLANK_LINE "                    "
 
-#define TOGGLE(val)(val > 0 ? 0 : 1)
-
 
 typedef enum
 {
@@ -44,6 +40,7 @@ typedef enum
   MENU_DIST_SPELLIC,
   MENU_START
 } UserState;
+
 
 typedef enum
 {
@@ -70,10 +67,8 @@ typedef enum
 } CtrlMode;
 
 
-int VEL_TO_STEP_DELAY[MAX_VEL_INT + 1];
-
+LiquidCrystal_I2C lcd(0x27,20,2);
 bool EEPROM_UPDATE = false;
-
 bool lcdBlink = false;
 int lcdBlinkTime = 0;
 int stepCount = 0;
@@ -95,6 +90,7 @@ const char* menuLabels[3] = {"VELOC EROG",
                             };
 char lcdLastPrint[20];
 char lcdLastMode[20];
+int VEL_TO_STEP_DELAY[MAX_VEL_INT + 1];
 bool isBacklight = false;
 int millisStart = 0;
 int millisStop = 0;
@@ -108,6 +104,7 @@ bool startReceived = false;
 bool stopReceived = false;
 bool btn3PressedOnManual = false;
 
+
 byte checksum(byte* bytes, int nBytes)
 {
   byte res = 0;
@@ -119,6 +116,7 @@ byte checksum(byte* bytes, int nBytes)
   return res;
 }
 
+
 void writeEepromParams()
 {
   byte curChecksum = checksum(eepromParams.Bytes, EEPROM_SIZE - 1);
@@ -128,6 +126,7 @@ void writeEepromParams()
     EEPROM.write(addr, eepromParams.Bytes[addr - EEPROM_ADDR]);
   }  
 }
+
 
 void readEepromParams()
 {
@@ -161,12 +160,14 @@ void readEepromParams()
   }
 }
 
-int getLastBkinkColumnsByMenuIndex(int menuIndex)
+
+int getLastBlinkColumnsByMenuIndex(int menuIndex)
 {
   if (menuIndex == 0) return 15;
   else if (menuIndex == 1) return nextDistSpellic > 99.9f ? 16 : 15;
   else return nextTempoStart > 99.9f ? 16 : 15;
 }
+
 
 void lcdPrint(char* prompt)
 {
@@ -590,7 +591,7 @@ void loop()
   if (lcdBlink)
   {
     int blinkDelta = curMillis - lcdBlinkTime;
-    int lastColumn = getLastBkinkColumnsByMenuIndex(menuIndex);
+    int lastColumn = getLastBlinkColumnsByMenuIndex(menuIndex);
     //Serial.println(blinkDelta);
     if (blinkDelta < 500)
     {
