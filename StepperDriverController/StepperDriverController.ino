@@ -4,18 +4,30 @@
 
 #include "EEPROM_IMG.h"
 
+// defines for setting and clearing register bits
+#ifndef cbi
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#endif
+#ifndef sbi
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#endif
 
 #define RESET  12
 #define SLEEP  11
 #define STEP   10
 #define DIR     9
+#define PROBE   8
 #define PHOTO_1 7
 #define PHOTO_2 4
 
-#define RESET_MASK B00010000
-#define SLEEP_MASK B00001000
-#define STEP_MASK  B00000100
-#define DIR_MASK   B00000010
+#define RESET_MASK   B00010000
+#define SLEEP_MASK   B00001000
+#define STEP_MASK    B00000100
+#define DIR_MASK     B00000010
+#define PHOTO_1_MASK B10000000
+#define PHOTO_2_MASK B00010000
+#define PROBE_ON   B00000001
+#define PROBE_OFF  B11111110
 
 #define BUTTON_IN A2
 #define BUTTON_1 917
@@ -321,7 +333,6 @@ void readUserButton(int curMillis)
   }
 }
 
-
 int readPhoto(bool* photo1, bool* photo2)
 {
   //if (Serial.available())
@@ -333,8 +344,10 @@ int readPhoto(bool* photo1, bool* photo2)
   //}
   //else
   //{
-    *photo1 = (digitalRead(PHOTO_1) == HIGH);
-    *photo2 = (digitalRead(PHOTO_2) == HIGH);
+    PORTB |= PROBE_ON;
+    *photo1 = ((PIND & PHOTO_1_MASK) > 0);
+    *photo2 = ((PIND & PHOTO_2_MASK) > 0);
+    PORTB &= PROBE_OFF;
   //}
 }
 
@@ -445,6 +458,11 @@ byte OVERLINE[] = {
 
 void setup()
 {
+  // set prescale to 16
+  sbi(ADCSRA,ADPS2);
+  cbi(ADCSRA,ADPS1);
+  cbi(ADCSRA,ADPS0);  
+  
   Serial.begin(115200);
 
   memset(lcdLastPrint, ' ', 20);
@@ -454,6 +472,7 @@ void setup()
   pinMode(SLEEP, OUTPUT);
   pinMode(STEP, OUTPUT);
   pinMode(DIR, OUTPUT);
+  pinMode(PROBE, OUTPUT);
   pinMode(PHOTO_1, INPUT);
   pinMode(PHOTO_2, INPUT);
 
@@ -483,7 +502,7 @@ void setup()
     PORTB &= ~DIR_MASK;
   }
 
-  delay(2500);
+  delay(2000);
   lcdClearDisplay();
 }
 
@@ -557,7 +576,6 @@ void loop()
       motorPower(false);
       isStepperMoving = false;
     }
-    
   }
   
   UserEvent e = readUserEvent(curMillis);
