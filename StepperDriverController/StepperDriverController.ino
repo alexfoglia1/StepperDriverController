@@ -447,7 +447,7 @@ void setup()
     PORTB &= ~DIR_MASK;
   }
 
-  //delay(2000);
+  delay(2000);
   lcdClearDisplay();
 }
 
