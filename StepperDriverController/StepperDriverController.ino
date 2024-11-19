@@ -3,45 +3,12 @@
 #include <EEPROM.h>
 
 #include "EEPROM_IMG.h"
-
-// defines for setting and clearing register bits
-#ifndef cbi
-#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
-#endif
-#ifndef sbi
-#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
-#endif
-
-#define RESET  12
-#define SLEEP  11
-#define STEP   10
-#define DIR     9
-#define PROBE   8
-#define PHOTO_1 7
-#define PHOTO_2 4
-
-#define RESET_MASK   B00010000
-#define SLEEP_MASK   B00001000
-#define STEP_MASK    B00000100
-#define DIR_MASK     B00000010
-#define PHOTO_1_MASK B10000000
-#define PHOTO_2_MASK B00010000
-#define PROBE_ON   B00000001
-#define PROBE_OFF  B11111110
-
-#define BUTTON_IN A2
-#define BUTTON_1 917
-#define BUTTON_2 994
-#define BUTTON_3 1015
-#define BUTTON_4 977
-#define BTN_TOL  2
+#include "Maintenance.h"
+#include "Board.h"
+#include "Motor.h"
 
 #define BTN_LONG_PRESSURE_MILLIS 1000
 #define BACKLIGHT_TIMEOUT_MILLIS 5000
-
-#define MAX_VEL_INT 500
-#define MAX_TEMPO_INT 2500
-#define EEPROM_ADDR 0
 
 #define LCD_BLANK_LINE "                    "
 
@@ -85,7 +52,6 @@ LiquidCrystal_I2C lcd(0x27,20,2);
 bool EEPROM_UPDATE = false;
 bool lcdBlink = false;
 int lcdBlinkTime = 0;
-int stepCount = 0;
 int buttonStates[4] = {0, 0, 0, 0};
 int buttonFirstPressure[4] = {0, 0, 0, 0};
 int buttonLastPressure[4] = {0, 0, 0, 0};
@@ -106,6 +72,7 @@ const char* menuLabels[4] = {"VELO EROGA ",
                             };
 char lcdLastPrint[20];
 char lcdLastMode[20];
+
 int VEL_TO_STEP_DELAY[MAX_VEL_INT + 1];
 bool isBacklight = false;
 int millisStart = 0;
@@ -206,6 +173,7 @@ void lcdPrintMode()
   
 }
 
+
 void lcdClearMode()
 {
   const char* prompt = LCD_BLANK_LINE;
@@ -219,6 +187,7 @@ void lcdClearMode()
     lcdBlinkTime = millis();
   }
 }
+
 
 void lcdClearDisplay()
 {
@@ -241,19 +210,6 @@ void inputValueToLcdString(const char* label, char prompt[20], uint16_t n, int n
   else
     sprintf(prompt, "%s %d%d.%d%d", label, thousands, hundreds, tens, units); 
   //Serial.println(prompt);
-}
-
-
-void motorStep(int stepDelay)
-{
-  //digitalWrite(STEP, HIGH);
-  PORTB |= STEP_MASK;
-  delayMicroseconds(stepDelay);
-  //digitalWrite(STEP, LOW);
-  PORTB &= ~STEP_MASK;
-  delayMicroseconds(stepDelay);
-    
-  stepCount += 1;
 }
 
 
@@ -333,22 +289,12 @@ void readUserButton(int curMillis)
   }
 }
 
-int readPhoto(bool* photo1, bool* photo2)
+
+ISR(TIMER1_COMPA_vect)
 {
-  //if (Serial.available())
-  //{
-  //  int ser = Serial.read();
-  //  *photo1 = ser == '1';
-  //  *photo2 = ser == '2';
-  //  Serial.print("Photo1: "); Serial.print(*photo1); Serial.print("\tPhoto2: "); Serial.println(*photo2);
-  //}
-  //else
-  //{
-    PORTB |= PROBE_ON;
-    *photo1 = ((PIND & PHOTO_1_MASK) > 0);
-    *photo2 = ((PIND & PHOTO_2_MASK) > 0);
-    PORTB &= PROBE_OFF;
-  //}
+  PORTB = (PORTB & PROBE_MASK) == 0 ? PORTB | PROBE_MASK : PORTB & ~PROBE_MASK;  
+  isPhoto1 = ((PIND & PHOTO_1_MASK) > 0);
+  isPhoto2 = ((PIND & PHOTO_2_MASK) > 0);
 }
 
 
@@ -426,24 +372,6 @@ UserEvent readUserEvent(int curMillis)
 }
 
 
-void motorPower(bool powerOn)
-{
-  if (powerOn)
-  {
-    PORTB |= (RESET_MASK | SLEEP_MASK);
-    //digitalWrite(RESET, HIGH);
-    //digitalWrite(SLEEP, HIGH);
-  }
-  else
-  {
-    PORTB &= ~(RESET_MASK | SLEEP_MASK);
-    //digitalWrite(RESET, LOW);
-    //digitalWrite(RESET, LOW);
-
-    stepCount = 0;
-  }
-}
-
 byte OVERLINE[] = {
   B11111,
   B00000,
@@ -458,11 +386,28 @@ byte OVERLINE[] = {
 
 void setup()
 {
-  // set prescale to 16
+  // set AD prescale to 16
   sbi(ADCSRA,ADPS2);
   cbi(ADCSRA,ADPS1);
   cbi(ADCSRA,ADPS0);  
   
+  /** Create 250 micros timer to read photo1 and photo2 **/
+  noInterrupts(); // Disabilita gli interrupt durante la configurazione
+
+  TCCR1A = 0; // Modalità normale
+  TCCR1B = 0; // Reset del registro
+  TCNT1 = 0;  // Reset del contatore
+
+  // Configura il valore di confronto per 250 µs
+  OCR1A = 499; // 499 cicli (250 µs con prescaler 8)
+
+  TCCR1B |= (1 << WGM12); // Modalità CTC (Clear Timer on Compare Match)
+  TCCR1B |= (1 << CS11);  // Prescaler 8
+
+  TIMSK1 |= (1 << OCIE1A); // Abilita l'interrupt del Timer1
+
+  interrupts(); // Riabilita gli interrupt
+
   Serial.begin(115200);
 
   memset(lcdLastPrint, ' ', 20);
@@ -502,15 +447,13 @@ void setup()
     PORTB &= ~DIR_MASK;
   }
 
-  delay(2000);
+  //delay(2000);
   lcdClearDisplay();
 }
 
 
 void automatic(int curMillis)
 {
-  readPhoto(&isPhoto1, &isPhoto2);
-
   int startDelta = startReceived ? (curMillis - millisStart) : 0;
   int stopDelta  = stopReceived ? (curMillis - millisStop) : 0;
   int startDelayMillis   = eepromParams.Values.tempoStart;
@@ -1043,6 +986,7 @@ void loop()
     EEPROM_UPDATE = false;
   }
   
+  MAINT_Handler(&EEPROM_UPDATE, &isStepperMoving);
 #if 0
   long deltaMicros = micros() - t0;
   long toWait = eepromParams.Values.minDelayMicros - deltaMicros;
@@ -1052,5 +996,6 @@ void loop()
     delayMicroseconds(toWait);
   }
 #endif
+
   
 }
