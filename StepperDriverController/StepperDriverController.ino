@@ -57,7 +57,7 @@ int buttonFirstPressure[4] = {0, 0, 0, 0};
 int buttonLastPressure[4] = {0, 0, 0, 0};
 int ignoreRelease[4] = {0, 0, 0, 0};
 EEPROM_IMG eepromParams;
-EEPROM_IMG eepromDefaults = {MAX_VEL_INT, 1000, 1000, 100, MODE_AUTO, 500, 5000, 0, 0};
+EEPROM_IMG eepromDefaults = {MAX_VEL_INT, 1000, 1000, 100, MODE_AUTO, 1000, 5000, 0, 0};
 uint16_t nextVel = MAX_VEL_INT;
 uint16_t nextDistSpellic = 1000;
 uint16_t nextTempoStart = 1000;
@@ -216,68 +216,69 @@ void inputValueToLcdString(const char* label, char prompt[20], uint16_t n, int n
 void readUserButton(int curMillis)
 {
   int valueRead = analogRead(BUTTON_IN);
+  //Serial.println(valueRead);
 
   if (valueRead >= BUTTON_1 - BTN_TOL && valueRead <= BUTTON_1 + BTN_TOL)
   {
-    if (!buttonStates[0])
+    if (buttonStates[0] == 0)
     {
       buttonFirstPressure[0] = curMillis;
       buttonFirstPressure[1] = 0;
       buttonFirstPressure[2] = 0;
       buttonFirstPressure[3] = 0;
     }
-    buttonStates[0] = 1;
-    buttonStates[1] = 0;
-    buttonStates[2] = 0;
-    buttonStates[3] = 0;
+    buttonStates[0] += 1;
+    buttonStates[1] -= 1;
+    buttonStates[2] -= 1;
+    buttonStates[3] -= 1;
     buttonLastPressure[0] = curMillis;
     lastUserInput = curMillis;
   }
   else if (valueRead >= BUTTON_2 - BTN_TOL && valueRead <= BUTTON_2 + BTN_TOL)
   {
-    if (!buttonStates[1])
+    if (buttonStates[1] == 0)
     {
       buttonFirstPressure[0] = 0;
       buttonFirstPressure[1] = curMillis;
       buttonFirstPressure[2] = 0;
       buttonFirstPressure[3] = 0;
     }    
-    buttonStates[0] = 0;
-    buttonStates[1] = 1;
-    buttonStates[2] = 0;
-    buttonStates[3] = 0;
+    buttonStates[0] -= 1;
+    buttonStates[1] += 1;
+    buttonStates[2] -= 1;
+    buttonStates[3] -= 1;
     buttonLastPressure[1] = curMillis;
     lastUserInput = curMillis;
   }
   else if (valueRead >= BUTTON_3 - BTN_TOL && valueRead <= BUTTON_3 + BTN_TOL)
   {
-    if (!buttonStates[2])
+    if (buttonStates[2] == 0)
     {
       buttonFirstPressure[0] = 0;
       buttonFirstPressure[1] = 0;
       buttonFirstPressure[2] = curMillis;
       buttonFirstPressure[3] = 0;
     }        
-    buttonStates[0] = 0;
-    buttonStates[1] = 0;
-    buttonStates[2] = 1;
-    buttonStates[3] = 0;
+    buttonStates[0] -= 1;
+    buttonStates[1] -= 1;
+    buttonStates[2] += 1;
+    buttonStates[3] -= 1;
     buttonLastPressure[2] = curMillis;
     lastUserInput = curMillis;
   }
   else if (valueRead >= BUTTON_4 - BTN_TOL && valueRead <= BUTTON_4 + BTN_TOL)
   {
-    if (!buttonStates[3])
+    if (buttonStates[3] == 0)
     {
       buttonFirstPressure[0] = 0;
       buttonFirstPressure[1] = 0;
       buttonFirstPressure[2] = 0;
       buttonFirstPressure[3] = curMillis;
     }          
-    buttonStates[0] = 0;
-    buttonStates[1] = 0;
-    buttonStates[2] = 0;
-    buttonStates[3] = 1;
+    buttonStates[0] -= 1;
+    buttonStates[1] -= 1;
+    buttonStates[2] -= 1;
+    buttonStates[3] += 1;
     buttonLastPressure[3] = curMillis;
     lastUserInput = curMillis;
   }
@@ -287,6 +288,17 @@ void readUserButton(int curMillis)
     memset(buttonLastPressure, 0, 4 * sizeof(int));
     memset(buttonStates, 0, 4 * sizeof(int));
   }
+
+  if (buttonStates[0] < 0) buttonStates[0] = 0;
+  if (buttonStates[1] < 0) buttonStates[1] = 0;
+  if (buttonStates[2] < 0) buttonStates[2] = 0;
+  if (buttonStates[3] < 0) buttonStates[3] = 0;
+
+  if (buttonStates[0] > 5) buttonStates[0] = 5;
+  if (buttonStates[1] > 5) buttonStates[1] = 5;
+  if (buttonStates[2] > 5) buttonStates[2] = 5;
+  if (buttonStates[3] > 5) buttonStates[3] = 5;
+
 }
 
 
@@ -304,62 +316,62 @@ UserEvent readUserEvent(int curMillis)
   memcpy(oldButtonStates, buttonStates, 4 * sizeof(int));
   readUserButton(curMillis);
   /** BUTTON 1 **/
-  if (buttonStates[0] && (buttonLastPressure[0] - buttonFirstPressure[0] < BTN_LONG_PRESSURE_MILLIS))
+  if (buttonStates[0] > 4 && (buttonLastPressure[0] - buttonFirstPressure[0] < BTN_LONG_PRESSURE_MILLIS))
   {
     return BTN_1_PRESSED;
   }
-  else if (buttonStates[0] && (buttonLastPressure[0] - buttonFirstPressure[0] >= BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[0] > 4 && (buttonLastPressure[0] - buttonFirstPressure[0] >= BTN_LONG_PRESSURE_MILLIS))
   {
     buttonFirstPressure[0] = buttonLastPressure[0];
     ignoreRelease[0] = 1;
     return BTN_1_LONGPRS;
   }
-  else if (!buttonStates[0] && oldButtonStates[0] && !ignoreRelease[0])
+  else if (buttonStates[0] == 0 && oldButtonStates[0] && !ignoreRelease[0])
   {
     return BTN_1_RELEASE;
   }
   /** BUTTON 2 **/
-  else if (buttonStates[1] && (buttonLastPressure[1] - buttonFirstPressure[1] < BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[1] > 4 && (buttonLastPressure[1] - buttonFirstPressure[1] < BTN_LONG_PRESSURE_MILLIS))
   {
     return BTN_2_PRESSED;
   }
-  else if (buttonStates[1] && (buttonLastPressure[1] - buttonFirstPressure[1] >= BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[1] > 4 && (buttonLastPressure[1] - buttonFirstPressure[1] >= BTN_LONG_PRESSURE_MILLIS))
   {
     buttonFirstPressure[1] = buttonLastPressure[1];
     ignoreRelease[1] = 1;
     return BTN_2_LONGPRS;
   }
-  else if (!buttonStates[1] && oldButtonStates[1] && !ignoreRelease[1])
+  else if (buttonStates[1] == 0 && oldButtonStates[1] && !ignoreRelease[1])
   {
     return BTN_2_RELEASE;
   }  
   /** BUTTON 3 **/
-  else if (buttonStates[2] && (buttonLastPressure[2] - buttonFirstPressure[2] < BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[2] > 4 && (buttonLastPressure[2] - buttonFirstPressure[2] < BTN_LONG_PRESSURE_MILLIS))
   {
     return BTN_3_PRESSED;
   }
-  else if (buttonStates[2] && (buttonLastPressure[2] - buttonFirstPressure[2] >= BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[2] > 4 && (buttonLastPressure[2] - buttonFirstPressure[2] >= BTN_LONG_PRESSURE_MILLIS))
   {
     buttonFirstPressure[2] = buttonLastPressure[2];
     ignoreRelease[2] = 1;
     return BTN_3_LONGPRS;
   }
-  else if (!buttonStates[2] && oldButtonStates[2] && !ignoreRelease[2])
+  else if (buttonStates[2] == 0 && oldButtonStates[2] && !ignoreRelease[2])
   {
     return BTN_3_RELEASE;
   }    
   /** BUTTON 4 **/
-  else if (buttonStates[3] && (buttonLastPressure[3] - buttonFirstPressure[3] < BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[3] > 4 && (buttonLastPressure[3] - buttonFirstPressure[3] < BTN_LONG_PRESSURE_MILLIS))
   {
     return BTN_4_PRESSED;
   }
-  else if (buttonStates[3] && (buttonLastPressure[3] - buttonFirstPressure[3] >= BTN_LONG_PRESSURE_MILLIS))
+  else if (buttonStates[3] > 4 && (buttonLastPressure[3] - buttonFirstPressure[3] >= BTN_LONG_PRESSURE_MILLIS))
   {
     buttonFirstPressure[3] = buttonLastPressure[3];
     ignoreRelease[3] = 1;    
     return BTN_4_LONGPRS;
   }
-  else if (!buttonStates[3] && oldButtonStates[3] && !ignoreRelease[3])
+  else if (buttonStates[3] == 0 && oldButtonStates[3] && !ignoreRelease[3])
   {
     return BTN_4_RELEASE;
   }    
@@ -561,7 +573,7 @@ void loop()
     {
       startColumn = 12;
     }
-    if (blinkDelta < 500)
+    if (blinkDelta < 700)
     {
       for (int i = startColumn; i < 16; i++)
       {
@@ -569,7 +581,7 @@ void loop()
         lcd.write(byte(0));
       }
     }
-    else if (blinkDelta >= 500 && blinkDelta < 1000)
+    else if (blinkDelta >= 700 && blinkDelta < 1000)
     {
       lcd.setCursor(11, 1);
       lcd.print("     ");
@@ -776,7 +788,7 @@ void loop()
         break;
         case BTN_3_PRESSED:
         {
-          countBtn3Pressed += 10;
+          countBtn3Pressed += 1;
           if (countBtn3Pressed < 20)
           {
             break;

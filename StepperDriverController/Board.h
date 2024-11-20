@@ -31,6 +31,6 @@
 #define BUTTON_2 994
 #define BUTTON_3 1015
 #define BUTTON_4 977
-#define BTN_TOL  2
+#define BTN_TOL 5
 
 #endif
