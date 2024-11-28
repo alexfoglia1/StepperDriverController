@@ -27,10 +27,11 @@
 #define PHOTO_2_MASK 0x10
 
 #define BUTTON_IN A2
-#define BUTTON_1 917
-#define BUTTON_2 994
-#define BUTTON_3 1015
-#define BUTTON_4 977
-#define BTN_TOL 5
+#define BUTTON_1 1014
+#define BUTTON_2 1004
+#define BUTTON_3 975
+#define BUTTON_4 890
+#define BUTTON_5 853
+#define BTN_TOL 4
 
 #endif
