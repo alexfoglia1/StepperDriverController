@@ -23,7 +23,8 @@ private:
 	enum class RxStatus
 	{
 		WAIT_SYNC = 0,
-		WAIT_HEADER,
+        WAIT_HEADER_1,
+        WAIT_HEADER_2,
 		WAIT_PAYLOAD
 	};
 
@@ -33,7 +34,8 @@ private:
 	quint8 _receivedPayloadSize;
 	quint8 _rxBuffer[32];
 
-	void autoScanComPorts();
+    void autoScanComPorts();
+    void dataIngest();
 	void update_fsm(quint8 byteIn);
 
 private slots:
@@ -42,11 +44,15 @@ private slots:
 	void onArduinoRx();
 	void onBtnReadMaxDelay();
 	void onBtnReadMinDelay();
-	void onBtnWriteMaxDelay();
+    void onBtnWriteMaxDelay();
 	void onBtnWriteMinDelay();
 	void onBtnInvert();
 	void onBtnStartStop();
 	void onBtnDefault();
+    void onBtnWriteButtons();
+    void onPollTimeout();
+    void onBtnReadButton1();
+    void onBtnReadButton3();
 };
 
 #endif

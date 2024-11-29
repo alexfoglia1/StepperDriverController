@@ -1,12 +1,13 @@
 #include "MaintenanceWindow.h"
 #include "Maintenance.h"
 
-typedef maint_rx_byte_t maint_tx_byte_t;
-
+#include <qthread.h>
 #include <qtimer.h>
 #include <qserialport.h>
 #include <qdatetime.h>
 #include <qmessagebox.h>
+
+#define BTN_MASK(BTN)(1 << BTN)
 
 
 MaintenanceWindow::MaintenanceWindow()
@@ -36,21 +37,95 @@ MaintenanceWindow::MaintenanceWindow()
 	connect(_ui.btnInvert, &QPushButton::clicked, this, &MaintenanceWindow::onBtnInvert);
 	connect(_ui.btnStartStopMotor, &QPushButton::clicked, this, &MaintenanceWindow::onBtnStartStop);
 	connect(_ui.btnDefault, &QPushButton::clicked, this, &MaintenanceWindow::onBtnDefault);
+    connect(_ui.btnReadButton1, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButton1);
+    connect(_ui.btnReadButton3, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButton3);
+    connect(_ui.btnDefault, &QPushButton::clicked, this, &MaintenanceWindow::onBtnDefault);
+    connect(_ui.btnWriteButtons, &QPushButton::clicked, this, &MaintenanceWindow::onBtnWriteButtons);
+
+
+    QTimer* pollTimeout = new QTimer();
+    pollTimeout->setTimerType(Qt::PreciseTimer);
+    pollTimeout->setInterval(10);
+    pollTimeout->setSingleShot(false);
+
+
+
+    connect(pollTimeout, &QTimer::timeout, this, &MaintenanceWindow::onPollTimeout);
+    pollTimeout->start();
 
 	autoscanComPortsTimer->start(500);
 }
+
+void MaintenanceWindow::onPollTimeout()
+{
+    if (_serialPort)
+    {
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_2.Bits.get_btn_state = _ui.checkPollButtons->isChecked();
+        headerTx.Bytes.byte_2.Bits.get_analog_in = _ui.checkPollAnalog->isChecked();
+
+        QByteArray qba;
+        qba.push_back(SYNC_CHAR);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
+
+        if (headerTx.Word)
+        {
+            _serialPort->write(qba);
+        }
+    }
+}
+
+
+void MaintenanceWindow::onBtnReadButton1()
+{
+    if (_serialPort)
+    {
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_2.Bits.get_btn_12_val = 1;
+
+        QByteArray qba;
+        qba.push_back(SYNC_CHAR);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
+
+        _serialPort->write(qba);
+    }
+}
+
+
+void MaintenanceWindow::onBtnReadButton3()
+{
+    if (_serialPort)
+    {
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_2.Bits.get_btn_345_val = 1;
+
+        QByteArray qba;
+        qba.push_back(SYNC_CHAR);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
+
+        _serialPort->write(qba);
+    }
+}
+
 
 void MaintenanceWindow::onBtnReadMaxDelay()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.get_max_delay = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.get_max_delay = 1;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 
 		_serialPort->write(qba);
 	}
@@ -61,13 +136,14 @@ void MaintenanceWindow::onBtnReadMinDelay()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.get_min_delay = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.get_min_delay = 1;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 
 		_serialPort->write(qba);
 	}
@@ -78,15 +154,16 @@ void MaintenanceWindow::onBtnWriteMaxDelay()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.set_max_delay = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.set_max_delay = 1;
 
 		quint16 maxDelay = _ui.spinMaxDelay->value() & 0xFFFF;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 		qba.push_back((maxDelay & 0xFF00) >> 8);
 		qba.push_back(maxDelay & 0xFF);
 
@@ -99,15 +176,16 @@ void MaintenanceWindow::onBtnWriteMinDelay()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.set_min_delay = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.set_min_delay = 1;
 
 		quint16 minDelay = _ui.spinMinDelay->value() & 0xFFFF;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 		qba.push_back((minDelay & 0xFF00) >> 8);
 		qba.push_back(minDelay & 0xFF);
 
@@ -120,13 +198,14 @@ void MaintenanceWindow::onBtnInvert()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.invert_dir = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.invert_dir = 1;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 
 		_serialPort->write(qba);
 	}
@@ -137,16 +216,51 @@ void MaintenanceWindow::onBtnStartStop()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.motor_move = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.motor_move = 1;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 
 		_serialPort->write(qba);
 	}
+}
+
+
+void MaintenanceWindow::onBtnWriteButtons()
+{
+    if (_serialPort)
+    {
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_2.Bits.set_btn_val = 1;
+
+        quint16 btn1 = _ui.spinButton1->value() & 0xFFFF;
+        quint16 btn2 = _ui.spinButton2->value() & 0xFFFF;
+        quint16 btn3 = _ui.spinButton3->value() & 0xFFFF;
+        quint16 btn4 = _ui.spinButton4->value() & 0xFFFF;
+        quint16 btn5 = _ui.spinButton5->value() & 0xFFFF;
+
+        QByteArray qba;
+        qba.push_back(SYNC_CHAR);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
+        qba.push_back((btn1 & 0xFF00) >> 8);
+        qba.push_back(btn1 & 0xFF);
+        qba.push_back((btn2 & 0xFF00) >> 8);
+        qba.push_back(btn2 & 0xFF);
+        qba.push_back((btn3 & 0xFF00) >> 8);
+        qba.push_back(btn3 & 0xFF);
+        qba.push_back((btn4 & 0xFF00) >> 8);
+        qba.push_back(btn4 & 0xFF);
+        qba.push_back((btn5 & 0xFF00) >> 8);
+        qba.push_back(btn5 & 0xFF);
+
+        _serialPort->write(qba);
+    }
 }
 
 
@@ -154,21 +268,117 @@ void MaintenanceWindow::onBtnDefault()
 {
 	if (_serialPort)
 	{
-		maint_tx_byte_t byteTx;
-		byteTx.Byte = 0;
-		byteTx.Bits.set_default = 1;
+        maint_header_t headerTx;
+        headerTx.Word = 0;
+        headerTx.Bytes.byte_1.Bits.set_default = 1;
 
 		QByteArray qba;
 		qba.push_back(SYNC_CHAR);
-		qba.push_back(byteTx.Byte);
+        qba.push_back(headerTx.Bytes.byte_1.Byte);
+        qba.push_back(headerTx.Bytes.byte_2.Byte);
 
 		_serialPort->write(qba);
 	}
 }
 
 
+void MaintenanceWindow::dataIngest()
+{
+    maint_header_byte_1 protocolByteIn1;
+    maint_header_byte_2 protocolByteIn2;
+    protocolByteIn1.Byte = _rxBuffer[0];
+    protocolByteIn2.Byte = _rxBuffer[1];
+
+    quint8 curOffset = 2;
+    if (protocolByteIn1.Bits.get_min_delay)
+    {
+        quint16 minDelayMSB = _rxBuffer[curOffset];
+        quint16 minDelayLSB = _rxBuffer[curOffset + 1];
+        quint16 minDelay = ((minDelayMSB << 8) | minDelayLSB);
+        _ui.spinMinDelay->setValue(minDelay);
+
+        curOffset += 2;
+    }
+
+    if (protocolByteIn1.Bits.get_max_delay)
+    {
+        quint16 maxDelayMSB = _rxBuffer[curOffset];
+        quint16 maxDelayLSB = _rxBuffer[curOffset + 1];
+        quint16 maxDelay = ((maxDelayMSB << 8) | maxDelayLSB);
+        _ui.spinMaxDelay->setValue(maxDelay);
+
+        curOffset += 2;
+    }
+
+    if (protocolByteIn2.Bits.get_btn_state)
+    {
+        uint8_t valueIn = _rxBuffer[curOffset];
+        uint8_t btnMask1 = BTN_MASK(1);
+        uint8_t btnMask2 = BTN_MASK(2);
+        uint8_t btnMask3 = BTN_MASK(3);
+        uint8_t btnMask4 = BTN_MASK(4);
+        uint8_t btnMask5 = BTN_MASK(5);
+
+        uint8_t isBtn1 = valueIn & btnMask1;
+        uint8_t isBtn2 = valueIn & btnMask2;
+        uint8_t isBtn3 = valueIn & btnMask3;
+        uint8_t isBtn4 = valueIn & btnMask4;
+        uint8_t isBtn5 = valueIn & btnMask5;
+
+        _ui.checkButton1->setChecked(isBtn1);
+        _ui.checkButton2->setChecked(isBtn2);
+        _ui.checkButton3->setChecked(isBtn3);
+        _ui.checkButton4->setChecked(isBtn4);
+        _ui.checkButton5->setChecked(isBtn5);
+
+        curOffset += 1;
+    }
+    if (protocolByteIn2.Bits.get_analog_in)
+    {
+        quint16 aInMSB = _rxBuffer[curOffset];
+        quint16 aInLSB = _rxBuffer[curOffset + 1];
+        quint16 aIn = ((aInMSB << 8) | aInLSB);
+        _ui.spinAnalogIn->setValue(aIn);
+
+        curOffset += 2;
+    }
+    if (protocolByteIn2.Bits.get_btn_12_val)
+    {
+        quint16 btn1MSB = _rxBuffer[curOffset];
+        quint16 btn1LSB = _rxBuffer[curOffset + 1];
+        quint16 btn2MSB = _rxBuffer[curOffset + 2];
+        quint16 btn2LSB = _rxBuffer[curOffset + 3];
+        quint16 btn1 = ((btn1MSB << 8) | btn1LSB);
+        quint16 btn2 = ((btn2MSB << 8) | btn2LSB);
+        _ui.spinButton1->setValue(btn1);
+        _ui.spinButton2->setValue(btn2);
+
+        curOffset += 4;
+    }
+    if (protocolByteIn2.Bits.get_btn_345_val)
+    {
+        quint16 btn3MSB = _rxBuffer[curOffset];
+        quint16 btn3LSB = _rxBuffer[curOffset + 1];
+        quint16 btn4MSB = _rxBuffer[curOffset + 2];
+        quint16 btn4LSB = _rxBuffer[curOffset + 3];
+        quint16 btn5MSB = _rxBuffer[curOffset + 4];
+        quint16 btn5LSB = _rxBuffer[curOffset + 5];
+        quint16 btn3 = ((btn3MSB << 8) | btn3LSB);
+        quint16 btn4 = ((btn4MSB << 8) | btn4LSB);
+        quint16 btn5 = ((btn5MSB << 8) | btn5LSB);
+        _ui.spinButton3->setValue(btn3);
+        _ui.spinButton4->setValue(btn4);
+        _ui.spinButton5->setValue(btn5);
+
+        curOffset += 6;
+    }
+}
+
+
 void MaintenanceWindow::update_fsm(quint8 byteIn)
 {
+    //printf("rxByteIn(%d)\n", byteIn);
+    //return;
 	switch (_rxStatus)
 	{
 		case RxStatus::WAIT_SYNC:
@@ -177,36 +387,18 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
 				_expectedPayloadSize = 0;
 				_receivedPayloadSize = 0;
 				memset(&_rxBuffer, 0x00, 32);
-				_rxStatus = RxStatus::WAIT_HEADER;
+                _rxStatus = RxStatus::WAIT_HEADER_1;
 			}
 		break;
-		case RxStatus::WAIT_HEADER:
+        case RxStatus::WAIT_HEADER_1:
 		{
-			maint_rx_byte_t protocolByteIn;
+            maint_header_byte_1 protocolByteIn;
 			protocolByteIn.Byte = byteIn;
 
 			if (protocolByteIn.Bits.zero == 0)
 			{
-				if (protocolByteIn.Bits.get_min_delay)
-				{
-					_expectedPayloadSize += 2;
-				}
-				if (protocolByteIn.Bits.get_max_delay)
-				{
-					_expectedPayloadSize += 2;
-				}
-
-				if (_expectedPayloadSize)
-				{
-					_receivedPayloadSize = 1;
-					_expectedPayloadSize += 1;
-					_rxBuffer[0] = byteIn;
-					_rxStatus = RxStatus::WAIT_PAYLOAD;
-				}
-				else
-				{
-					_rxStatus = RxStatus::WAIT_SYNC;
-				}
+                _rxBuffer[0] = byteIn;
+                _rxStatus = RxStatus::WAIT_HEADER_2;
 			}
 			else
 			{
@@ -214,36 +406,67 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
 			}
 		}
 		break;
+        case RxStatus::WAIT_HEADER_2:
+        {
+            maint_header_byte_2 protocolByteIn;
+            protocolByteIn.Byte = byteIn;
+
+            if (protocolByteIn.Bits.zero == 0)
+            {
+                _rxBuffer[1] = byteIn;
+
+                maint_header_t* hdr = reinterpret_cast<maint_header_t*>(&_rxBuffer[0]);
+
+                if (hdr->Bytes.byte_1.Bits.get_min_delay)
+                {
+                    _expectedPayloadSize += 2;
+                }
+                if (hdr->Bytes.byte_1.Bits.get_max_delay)
+                {
+                    _expectedPayloadSize += 2;
+                }
+                if (hdr->Bytes.byte_2.Bits.get_btn_state)
+                {
+                    _expectedPayloadSize += 1;
+                }
+                if (hdr->Bytes.byte_2.Bits.get_analog_in)
+                {
+                    _expectedPayloadSize += 2;
+                }
+                if (hdr->Bytes.byte_2.Bits.get_btn_12_val)
+                {
+                    _expectedPayloadSize += 4;
+                }
+                if (hdr->Bytes.byte_2.Bits.get_btn_345_val)
+                {
+                    _expectedPayloadSize += 6;
+                }
+
+                if (_expectedPayloadSize)
+                {
+                    _receivedPayloadSize = 0;
+                    _rxStatus = RxStatus::WAIT_PAYLOAD;
+                }
+                else
+                {
+                    dataIngest();
+                    _rxStatus = RxStatus::WAIT_SYNC;
+                }
+            }
+            else
+            {
+                _rxStatus = RxStatus::WAIT_SYNC;
+            }
+        }
+        break;
 		case RxStatus::WAIT_PAYLOAD:
 		{
-			_rxBuffer[_receivedPayloadSize] = byteIn;
+            _rxBuffer[sizeof(maint_header_t) + _receivedPayloadSize] = byteIn;
 			_receivedPayloadSize += 1;
 
 			if (_receivedPayloadSize == _expectedPayloadSize)
 			{
-				maint_rx_byte_t protocolByteIn;
-				protocolByteIn.Byte = _rxBuffer[0];
-
-				quint8 curOffset = 1;
-				if (protocolByteIn.Bits.get_min_delay)
-				{
-					quint16 minDelayMSB = _rxBuffer[curOffset];
-					quint16 minDelayLSB = _rxBuffer[curOffset + 1];
-					quint16 minDelay = ((minDelayMSB << 8) | minDelayLSB);
-					_ui.spinMinDelay->setValue(minDelay);
-
-					curOffset += 2;
-				}
-
-				if (protocolByteIn.Bits.get_max_delay)
-				{
-					quint16 maxDelayMSB = _rxBuffer[curOffset];
-					quint16 maxDelayLSB = _rxBuffer[curOffset + 1];
-					quint16 maxDelay = ((maxDelayMSB << 8) | maxDelayLSB);
-					_ui.spinMaxDelay->setValue(maxDelay);
-
-					curOffset += 2;
-				}
+                dataIngest();
 
 				_rxStatus = RxStatus::WAIT_SYNC;
 			}
@@ -258,11 +481,14 @@ void MaintenanceWindow::onArduinoRx()
 {
 	QByteArray qba = _serialPort->readAll();
 
+    //printf("*****\n");
 	for (auto& byte : qba)
 	{
+        //printf("rx: %hhu\n", quint8(byte));
 		//printf("%c", byte);
 		update_fsm(byte);
-	}
+    }
+    //printf("**********\n\n");
 }
 
 
@@ -274,7 +500,7 @@ void MaintenanceWindow::onBtnOpen()
 		{
 			_serialPort = new QSerialPort();
 			_serialPort->setPortName(_ui.comboSelPort->currentText());
-			_serialPort->setBaudRate(QSerialPort::Baud115200);
+            _serialPort->setBaudRate(QSerialPort::Baud115200);
 			_serialPort->setParity(QSerialPort::NoParity);
 			_serialPort->setDataBits(QSerialPort::Data8);
 			_serialPort->setStopBits(QSerialPort::OneStop);
@@ -326,7 +552,7 @@ void MaintenanceWindow::autoScanComPorts()
 	for (int i = 0; i < 100; i++)
 	{
 #ifdef __linux__
-        QString portName = QString("/dev/ttyACM%1").arg(i);
+        QString portName = QString("/dev/ttyUSB%1").arg(i);
 #else
 		QString portName = QString("COM%1").arg(i);
 #endif

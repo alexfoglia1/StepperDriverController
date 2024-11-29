@@ -8,7 +8,7 @@
 #include "Motor.h"
 
 #define MAJOR_V '1'
-#define MINOR_V '0'
+#define MINOR_V '1'
 #define STAGE_V 'B'
 
 #define LCD_BLANK_LINE "                    "
@@ -56,7 +56,7 @@ int lcdBlinkTime = 0;
 uint8_t buttonsState = 0;
 
 EEPROM_IMG eepromParams;
-EEPROM_IMG eepromDefaults = {MAX_VEL_INT, 1000, 1000, 100, MODE_AUTO, 800, 2000, 0, 0};
+EEPROM_IMG eepromDefaults = {MAX_VEL_INT, 1000, 1000, 100, MODE_AUTO, 800, 2000, 0, BUTTON_1, BUTTON_2, BUTTON_3, BUTTON_4, BUTTON_5, 0};
 uint16_t nextVel = MAX_VEL_INT;
 uint16_t nextDistSpellic = 1000;
 uint16_t nextTempoStart = 1000;
@@ -225,27 +225,27 @@ void readUserButton(int curMillis)
 
   //Serial.println(valueRead);
 
-  if (valueRead >= BUTTON_1 - BTN_TOL && valueRead <= BUTTON_1 + BTN_TOL)
+  if (valueRead + BTN_TOL >= eepromParams.Values.btn1 && valueRead - BTN_TOL <= eepromParams.Values.btn1)
   {
     buttonsState = BTN_MASK(1);
     lastUserInput = curMillis;
   }
-  else if (valueRead >= BUTTON_2 - BTN_TOL && valueRead <= BUTTON_2 + BTN_TOL)
+  else if (valueRead + BTN_TOL >= eepromParams.Values.btn2 && valueRead - BTN_TOL <= eepromParams.Values.btn2)
   {
     buttonsState = BTN_MASK(2);
     lastUserInput = curMillis;
   }
-  else if (valueRead >= BUTTON_3 - BTN_TOL && valueRead <= BUTTON_3 + BTN_TOL)
+  else if (valueRead + BTN_TOL >= eepromParams.Values.btn3 && valueRead - BTN_TOL <= eepromParams.Values.btn3)
   {
     buttonsState = BTN_MASK(3);
     lastUserInput = curMillis;
   }
-  else if (valueRead >= BUTTON_4 - BTN_TOL && valueRead <= BUTTON_4 + BTN_TOL)
+  else if (valueRead + BTN_TOL >= eepromParams.Values.btn4 && valueRead - BTN_TOL <= eepromParams.Values.btn4)
   {        
     buttonsState = BTN_MASK(4);
     lastUserInput = curMillis;
   }
-  else if (valueRead >= BUTTON_5 - BTN_TOL && valueRead <= BUTTON_5 + BTN_TOL)
+  else if (valueRead + BTN_TOL >= eepromParams.Values.btn5 && valueRead - BTN_TOL <= eepromParams.Values.btn5)
   {        
     buttonsState = BTN_MASK(5);
     lastUserInput = curMillis;
