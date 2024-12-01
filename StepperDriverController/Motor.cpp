@@ -26,7 +26,7 @@ void motorStep(int stepDelay)
   delayMicroseconds(stepDelay);
   //digitalWrite(STEP, LOW);
   PORTB &= ~STEP_MASK;
-  delayMicroseconds(stepDelay);
+  delayMicroseconds(stepDelay - 360);
     
   stepCount += 1;
 }

@@ -8,7 +8,7 @@
 #include "Motor.h"
 
 #define MAJOR_V '1'
-#define MINOR_V '1'
+#define MINOR_V '3'
 #define STAGE_V 'B'
 
 #define LCD_BLANK_LINE "                    "
