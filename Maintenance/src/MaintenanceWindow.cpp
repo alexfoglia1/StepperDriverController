@@ -63,7 +63,8 @@ void MaintenanceWindow::onPollTimeout()
         maint_header_t headerTx;
         headerTx.Word = 0;
         headerTx.Bytes.byte_2.Bits.get_btn_state = _ui.checkPollButtons->isChecked();
-        headerTx.Bytes.byte_2.Bits.get_analog_in = _ui.checkPollAnalog->isChecked();
+        headerTx.Bytes.byte_2.Bits.get_analog2_in = _ui.checkPollAnalog2->isChecked();
+        headerTx.Bytes.byte_2.Bits.get_analog4_in = _ui.checkPollAnalog4->isChecked();
 
         QByteArray qba;
         qba.push_back(SYNC_CHAR);
@@ -333,12 +334,12 @@ void MaintenanceWindow::dataIngest()
 
         curOffset += 1;
     }
-    if (protocolByteIn2.Bits.get_analog_in)
+    if (protocolByteIn2.Bits.get_analog2_in)
     {
         quint16 aInMSB = _rxBuffer[curOffset];
         quint16 aInLSB = _rxBuffer[curOffset + 1];
         quint16 aIn = ((aInMSB << 8) | aInLSB);
-        _ui.spinAnalogIn->setValue(aIn);
+        _ui.spinAnalogIn2->setValue(aIn);
 
         curOffset += 2;
     }
@@ -429,7 +430,7 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
                 {
                     _expectedPayloadSize += 1;
                 }
-                if (hdr->Bytes.byte_2.Bits.get_analog_in)
+                if (hdr->Bytes.byte_2.Bits.get_analog2_in)
                 {
                     _expectedPayloadSize += 2;
                 }

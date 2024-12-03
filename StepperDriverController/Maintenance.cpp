@@ -97,12 +97,17 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
     extern uint8_t buttonsState;
     Serial.write(buttonsState);
   }
-  if (rxHeader->Bytes.byte_2.Bits.get_analog_in)
+  if (rxHeader->Bytes.byte_2.Bits.get_analog2_in)
   {
     uint16_t aIn = analogRead(BUTTON_IN);
     Serial.write((aIn & 0xFF00) >> 8);
     Serial.write((aIn & 0x00FF));
     
+  }
+    if (rxHeader->Bytes.byte_2.Bits.get_analog4_in)
+  {
+    Serial.write(0x00);
+    Serial.write(0x00);
   }
   if (rxHeader->Bytes.byte_2.Bits.get_btn_12_val)
   {

@@ -26,7 +26,8 @@ typedef union
     struct
     {
         uint8_t get_btn_state   :1;
-        uint8_t get_analog_in   :1;
+        uint8_t get_analog2_in  :1;
+        uint8_t get_analog4_in  :1;
         uint8_t get_btn_12_val  :1;
         uint8_t get_btn_345_val :1;
         uint8_t set_btn_val     :1;
