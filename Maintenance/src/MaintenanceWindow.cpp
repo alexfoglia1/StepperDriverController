@@ -541,18 +541,23 @@ void MaintenanceWindow::onBtnOpen()
 				_ui.comboSelPort->setEnabled(false);
 				_ui.btnRescanPorts->setEnabled(false);
 				_ui.btnOpenSerialPort->setText("Close");
+                _ui.btnOpenSerialPort->setEnabled(false);
+                QTimer::singleShot(2000, Qt::PreciseTimer, this, [this](){
+                    // get sw vers
+                    maint_header_t headerTx;
+                    headerTx.Word = 0;
+                    headerTx.Bytes.byte_2.Bits.get_sw_ver = 1;
 
-                // get sw vers
-                maint_header_t headerTx;
-                headerTx.Word = 0;
-                headerTx.Bytes.byte_2.Bits.get_sw_ver = 1;
+                    QByteArray qba;
+                    qba.push_back(SYNC_CHAR);
+                    qba.push_back(headerTx.Bytes.byte_1.Byte);
+                    qba.push_back(headerTx.Bytes.byte_2.Byte);
 
-                QByteArray qba;
-                qba.push_back(SYNC_CHAR);
-                qba.push_back(headerTx.Bytes.byte_1.Byte);
-                qba.push_back(headerTx.Bytes.byte_2.Byte);
+                    _serialPort->write(qba);
 
-                _serialPort->write(qba);
+                    _ui.btnOpenSerialPort->setEnabled(true);
+                });
+
 			}
 			else
 			{
