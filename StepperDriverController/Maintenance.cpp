@@ -104,8 +104,9 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
     Serial.write((aIn & 0x00FF));
     
   }
-    if (rxHeader->Bytes.byte_2.Bits.get_analog4_in)
+  if (rxHeader->Bytes.byte_2.Bits.get_analog5_in)
   {
+    // Unimplemented FULL
     Serial.write(0x00);
     Serial.write(0x00);
   }
@@ -154,6 +155,13 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
     eepromParams.Values.btn5 = (expectedBytes[8] << 8 | expectedBytes[9]);
 
     *eepromUpdate = true;
+  }
+  if (rxHeader->Bytes.byte_2.Bits.get_sw_ver)
+  {
+    Serial.write(MAJOR_V);
+    Serial.write(MINOR_V);
+    Serial.write(STAGE_V);
+    Serial.write(SW_PN);
   }
     
 }

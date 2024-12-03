@@ -3,6 +3,11 @@
 
 #include <avr/io.h>
 
+#define MAJOR_V '1'
+#define MINOR_V '4'
+#define STAGE_V 'B'
+#define SW_PN   'F'
+
 #ifndef cbi
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #endif

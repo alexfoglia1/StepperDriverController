@@ -7,10 +7,6 @@
 #include "Board.h"
 #include "Motor.h"
 
-#define MAJOR_V '1'
-#define MINOR_V '4'
-#define STAGE_V 'B'
-
 #define LCD_BLANK_LINE "                    "
 
 #define BTN_MASK(BTN)(1 << BTN)

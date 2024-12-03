@@ -64,7 +64,7 @@ void MaintenanceWindow::onPollTimeout()
         headerTx.Word = 0;
         headerTx.Bytes.byte_2.Bits.get_btn_state = _ui.checkPollButtons->isChecked();
         headerTx.Bytes.byte_2.Bits.get_analog2_in = _ui.checkPollAnalog2->isChecked();
-        headerTx.Bytes.byte_2.Bits.get_analog4_in = _ui.checkPollAnalog4->isChecked();
+        headerTx.Bytes.byte_2.Bits.get_analog5_in = _ui.checkPollAnalog5->isChecked();
 
         QByteArray qba;
         qba.push_back(SYNC_CHAR);
@@ -343,6 +343,15 @@ void MaintenanceWindow::dataIngest()
 
         curOffset += 2;
     }
+    if (protocolByteIn2.Bits.get_analog5_in)
+    {
+        quint16 aInMSB = _rxBuffer[curOffset];
+        quint16 aInLSB = _rxBuffer[curOffset + 1];
+        quint16 aIn = ((aInMSB << 8) | aInLSB);
+        _ui.spinAnalogIn5->setValue(aIn);
+
+        curOffset += 2;
+    }
     if (protocolByteIn2.Bits.get_btn_12_val)
     {
         quint16 btn1MSB = _rxBuffer[curOffset];
@@ -372,6 +381,15 @@ void MaintenanceWindow::dataIngest()
         _ui.spinButton5->setValue(btn5);
 
         curOffset += 6;
+    }
+    if (protocolByteIn2.Bits.get_sw_ver)
+    {
+        _ui.lineSwVers->setText(
+            QString("%1.%2-%3 %4").arg(char(_rxBuffer[curOffset])).arg(char(_rxBuffer[curOffset + 1])).arg(char(_rxBuffer[curOffset + 2]))
+            .arg(_rxBuffer[curOffset + 3] == 'M' ? "MINI" :
+            _rxBuffer[curOffset + 3] == 'F' ? "FULL" : "ERR"));
+
+        curOffset += 4;
     }
 }
 
@@ -434,6 +452,10 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
                 {
                     _expectedPayloadSize += 2;
                 }
+                if (hdr->Bytes.byte_2.Bits.get_analog5_in)
+                {
+                    _expectedPayloadSize += 2;
+                }
                 if (hdr->Bytes.byte_2.Bits.get_btn_12_val)
                 {
                     _expectedPayloadSize += 4;
@@ -441,6 +463,10 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
                 if (hdr->Bytes.byte_2.Bits.get_btn_345_val)
                 {
                     _expectedPayloadSize += 6;
+                }
+                if (hdr->Bytes.byte_2.Bits.get_sw_ver)
+                {
+                    _expectedPayloadSize += 4;
                 }
 
                 if (_expectedPayloadSize)
@@ -512,10 +538,21 @@ void MaintenanceWindow::onBtnOpen()
 			bool ret = _serialPort->open(QSerialPort::OpenModeFlag::ReadWrite);
 			if (ret)
 			{
-
 				_ui.comboSelPort->setEnabled(false);
 				_ui.btnRescanPorts->setEnabled(false);
 				_ui.btnOpenSerialPort->setText("Close");
+
+                // get sw vers
+                maint_header_t headerTx;
+                headerTx.Word = 0;
+                headerTx.Bytes.byte_2.Bits.get_sw_ver = 1;
+
+                QByteArray qba;
+                qba.push_back(SYNC_CHAR);
+                qba.push_back(headerTx.Bytes.byte_1.Byte);
+                qba.push_back(headerTx.Bytes.byte_2.Byte);
+
+                _serialPort->write(qba);
 			}
 			else
 			{
