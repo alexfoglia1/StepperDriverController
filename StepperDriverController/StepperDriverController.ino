@@ -365,15 +365,19 @@ void setup()
   memset(lcdLastPrint, ' ', 20);
   memset(lcdLastMode,  ' ', 20);
   
-  pinMode(RESET, OUTPUT);
-  pinMode(SLEEP, OUTPUT);
-  pinMode(STEP, OUTPUT);
-  pinMode(DIR, OUTPUT);
+  pinMode(STEP_M, OUTPUT);
+  pinMode(STEP_P, OUTPUT);
+  pinMode(DIR_M, OUTPUT);
+  pinMode(DIR_P, OUTPUT);
   pinMode(PROBE, OUTPUT);
   pinMode(PHOTO_1, INPUT);
   pinMode(PHOTO_2, INPUT);
 
+  PORTB |= (STEP_P_MASK | DIR_P_MASK);
+  
+#ifdef BOARD_REV_B
   motorPower(false);
+#endif
 
   lcd.init();
   lcd.createChar(0, OVERLINE);
@@ -391,11 +395,11 @@ void setup()
   
   if (eepromParams.Values.curDirection)
   {
-    PORTB |= DIR_MASK;
+    PORTB |= DIR_M_MASK;
   }
   else
   {
-    PORTB &= ~DIR_MASK;
+    PORTB &= ~DIR_M_MASK;
   }
 
   delay(2000);
@@ -430,15 +434,17 @@ void automatic(int curMillis)
   {
     isStepperMoving = true;
     startReceived = false;
-
+#ifdef BOARD_REV_B
     motorPower(true);
+#endif    
   }
   else if (stopReceived && stopDelta >= stopDelayMillis)
   {
     isStepperMoving = false;
     stopReceived = false;
-
+#ifdef BOARD_REV_B
     motorPower(false);
+#endif    
   }
 
   if (isStepperMoving)
@@ -467,7 +473,9 @@ void loop()
     }
     else
     {
+#ifdef BOARD_REV_B      
       motorPower(false);
+#endif      
       isStepperMoving = false;
     }
   }
@@ -549,7 +557,9 @@ void loop()
         {
           if (eepromParams.Values.ctrlMode == MODE_AUTO)
           {
+#ifdef BOARD_REV_B            
             motorPower(false);
+#endif
             isStepperMoving = false;
             startReceived = false;
             stopReceived = false;
@@ -567,14 +577,17 @@ void loop()
             {
               isStepperMoving = true;
             }
-
+#ifdef BOARD_REV_B
             motorPower(isStepperMoving);
+#endif            
           }
         }
         break;
         case BTN_4_RELEASE:
         {
+#ifdef BOARD_REV_B          
           motorPower(false);
+#endif
           isStepperMoving = false;
           startReceived = false;
           stopReceived = false;

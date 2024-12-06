@@ -5,6 +5,7 @@
 
 int stepCount = 0;
 
+#ifdef BOARD_REVB
 void motorPower(bool powerOn)
 {
   if (powerOn)
@@ -17,15 +18,14 @@ void motorPower(bool powerOn)
     stepCount = 0;
   }
 }
+#endif
 
 
 void motorStep(int stepDelay)
 {
-  //digitalWrite(STEP, HIGH);
-  PORTB |= STEP_MASK;
+  PORTB |= STEP_M_MASK;
   delayMicroseconds(stepDelay);
-  //digitalWrite(STEP, LOW);
-  PORTB &= ~STEP_MASK;
+  PORTB &= ~STEP_M_MASK;
   delayMicroseconds(stepDelay - 360);
     
   stepCount += 1;

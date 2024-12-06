@@ -38,18 +38,20 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
   {
     eepromParams.Values.ctrlMode = 1;
     *stepperMoving = !*stepperMoving;
+#ifdef BOARD_REV_B
     motorPower(*stepperMoving);
+#endif
   }
   if (rxHeader->Bytes.byte_1.Bits.invert_dir)
   {
     eepromParams.Values.curDirection = !eepromParams.Values.curDirection;
     if (eepromParams.Values.curDirection)
     {
-      PORTB |= DIR_MASK;
+      PORTB |= DIR_M_MASK;
     }
     else
     {
-      PORTB &= ~DIR_MASK;
+      PORTB &= ~DIR_M_MASK;
     }
 
     *eepromUpdate = true;
