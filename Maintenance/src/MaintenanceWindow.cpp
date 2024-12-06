@@ -41,7 +41,8 @@ MaintenanceWindow::MaintenanceWindow()
     connect(_ui.btnReadButton3, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButton3);
     connect(_ui.btnDefault, &QPushButton::clicked, this, &MaintenanceWindow::onBtnDefault);
     connect(_ui.btnWriteButtons, &QPushButton::clicked, this, &MaintenanceWindow::onBtnWriteButtons);
-
+    //connect(_ui.spinMaxDelay, &QSpinBox::valueChanged, this, &MaintenanceWindow::onDelayChanged);
+    connect(_ui.spinMinDelay, QOverload<int>::of(&QSpinBox::valueChanged), this, &MaintenanceWindow::onDelayChanged);
 
     QTimer* pollTimeout = new QTimer();
     pollTimeout->setTimerType(Qt::PreciseTimer);
@@ -55,6 +56,13 @@ MaintenanceWindow::MaintenanceWindow()
 
 	autoscanComPortsTimer->start(500);
 }
+
+
+void MaintenanceWindow::onDelayChanged(int newValue)
+{
+    _ui.btnWriteMinDelay->click();
+}
+
 
 void MaintenanceWindow::onPollTimeout()
 {

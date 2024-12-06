@@ -53,6 +53,7 @@ private slots:
     void onPollTimeout();
     void onBtnReadButton1();
     void onBtnReadButton3();
+	void onDelayChanged(int newDelay);
 };
 
 #endif
