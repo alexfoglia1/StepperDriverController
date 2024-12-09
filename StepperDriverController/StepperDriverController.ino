@@ -59,7 +59,7 @@ uint16_t nextIgnoreF1 = 10;
 
 UserState userState = MAIN_MENU;
 int menuIndex = 0;
-const char* menuLabels[5] = {"VEL EROGA ",
+const char* menuLabels[5] = {"VEL EROGA",
                              "DIS SPELL",
                              "TEM START",
                              "IGN FOTC1",
@@ -194,6 +194,7 @@ void inputValueToLcdString(const char* label, char prompt[20], uint16_t n, bool 
   uint16_t tensthousands = (n / 10000) % 10;
 
   sprintf(prompt, "%s %d%d%d%d.%d", label, tensthousands, thousands, hundreds, tens, units); 
+  //Serial.println(prompt);
 }
 
 
@@ -316,9 +317,13 @@ void automatic(int curMillis)
 {
   int startDelta = startReceived ? (curMillis - millisStart) : 0;
   int stopDelta  = stopReceived ? (curMillis - millisStop) : 0;
-  int startDelayMillis   = eepromParams.Values.tempoStart;
-  int stopDelayMillis    = eepromParams.Values.distSpellic;
-  int ignorePhoto1Millis = eepromParams.Values.ignoreF1;  
+  int startDelayMillis   = (int)(eepromParams.Values.tempoStart) * 10;
+  int stopDelayMillis    = (int)(eepromParams.Values.distSpellic) * 10;
+  int ignorePhoto1Millis = (int)(eepromParams.Values.ignoreF1) * 10;  
+
+
+  //Serial.print("startDelta:" );
+  //Serial.println(startDelta);
 
   if (isPhoto1 && !startReceived && !isStepperMoving)
   {
@@ -376,7 +381,7 @@ void debugUserEvent(UserEvent e)
 
 
 
-void navigateSubMenu(UserEvent e, uint16_t* valueToUpdate, uint16_t* eepromValue, int minValue, int maxValue)
+void navigateSubMenu(UserEvent e, uint16_t* valueToUpdate, uint16_t* eepromValue, uint16_t minValue, uint16_t maxValue)
 {
   char prompt[20];
 
@@ -428,7 +433,7 @@ void navigateSubMenu(UserEvent e, uint16_t* valueToUpdate, uint16_t* eepromValue
     break;
     case BTN_3_RELEASE:
     {
-      if (*valueToUpdate > 10 * minValue)
+      if (*valueToUpdate > 10 + minValue)
         *valueToUpdate -= 10;
       else
         *valueToUpdate = maxValue;
@@ -439,7 +444,7 @@ void navigateSubMenu(UserEvent e, uint16_t* valueToUpdate, uint16_t* eepromValue
     break;
     case BTN_4_RELEASE:
     {
-      if (*valueToUpdate <= maxValue - 10)
+      if (*valueToUpdate < maxValue - 10)
         *valueToUpdate += 10;
       else
         *valueToUpdate = minValue;

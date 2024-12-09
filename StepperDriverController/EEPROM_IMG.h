@@ -5,7 +5,7 @@
 
 #define EEPROM_SIZE 25
 #define MAX_VEL_INT 500
-#define MAX_TEMPO_INT 10000
+#define MAX_TEMPO_INT 65535
 #define EEPROM_ADDR 0
 
 typedef union
