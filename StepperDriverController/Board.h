@@ -6,7 +6,7 @@
 #include <avr/io.h>
 
 #define MAJOR_V '1'
-#define MINOR_V '5'
+#define MINOR_V '6'
 #define STAGE_V 'B'
 #define SW_PN   'F'
 
@@ -39,6 +39,6 @@
 #define BUTTON_3 975
 #define BUTTON_4 890
 #define BUTTON_5 853
-#define BTN_TOL 4
+#define BTN_TOL 5
 
 #endif

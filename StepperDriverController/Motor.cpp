@@ -24,9 +24,9 @@ void motorPower(bool powerOn)
 void motorStep(int stepDelay)
 {
   PORTB |= STEP_M_MASK;
-  delayMicroseconds(stepDelay);
+  delayMicroseconds(5);
   PORTB &= ~STEP_M_MASK;
-  delayMicroseconds(stepDelay - 360);
+  delayMicroseconds(stepDelay - 5);
     
   stepCount += 1;
 }
