@@ -1,12 +1,12 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#define BOARD_REV_A
+#define BOARD_REV_B
 
 #include <avr/io.h>
 
 #define MAJOR_V '1'
-#define MINOR_V '7'
+#define MINOR_V '8'
 #define STAGE_V 'B'
 #define SW_PN   'F'
 
@@ -21,7 +21,8 @@
 #define DIR_M     11
 #define STEP_P    10
 #define STEP_M    9
-#define PROBE     8
+#define ENA_P     8
+#define ENA_M     7
 #define PHOTO_1   4
 #define PHOTO_2   5
 
@@ -29,7 +30,6 @@
 #define DIR_M_MASK   0x08
 #define STEP_P_MASK  0x04
 #define STEP_M_MASK  0x02
-#define PROBE_MASK   0x01
 #define PHOTO_1_MASK 0x10
 #define PHOTO_2_MASK 0x20
 

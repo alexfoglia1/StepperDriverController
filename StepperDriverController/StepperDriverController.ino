@@ -248,7 +248,6 @@ void readUserButton(int curMillis)
 
 ISR(TIMER1_COMPA_vect)
 {
-  PORTB = (PORTB & PROBE_MASK) == 0 ? PORTB | PROBE_MASK : PORTB & ~PROBE_MASK;  
   isPhoto1 = ((PIND & PHOTO_1_MASK) > 0);
   isPhoto2 = ((PIND & PHOTO_2_MASK) > 0);
 }
@@ -498,7 +497,7 @@ void navigateMainMenu(UserEvent e)
                     menuIndex == 3 ? MENU_IGNORE_F1 : userState;
     }
     break;
-    case BTN_3_RELEASE:
+    case BTN_3_PRESSED:
     {
       if (eepromParams.Values.ctrlMode == MODE_AUTO)
       {
@@ -517,6 +516,7 @@ void navigateMainMenu(UserEvent e)
         if (isStepperMoving)
         {
           isStepperMoving = false;
+          isMotorSpinup = false;
         }
         else
         {
@@ -526,7 +526,7 @@ void navigateMainMenu(UserEvent e)
           isMotorSpinup = true;
         }
 #ifdef BOARD_REV_B
-        motorPower(isStepperMoving);
+        motorPower(isMotorSpinup);
 #endif            
       }
     }
@@ -582,7 +582,6 @@ void setup()
   pinMode(STEP_P, OUTPUT);
   pinMode(DIR_M, OUTPUT);
   pinMode(DIR_P, OUTPUT);
-  pinMode(PROBE, OUTPUT);
   pinMode(PHOTO_1, INPUT);
   pinMode(PHOTO_2, INPUT);
 

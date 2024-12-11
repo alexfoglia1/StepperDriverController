@@ -5,17 +5,20 @@
 
 int stepCount = 0;
 
-#ifdef BOARD_REVB
+#ifdef BOARD_REV_B
 void motorPower(bool powerOn)
 {
   if (powerOn)
   {
-    PORTB |= (RESET_MASK | SLEEP_MASK);
+    //Serial.println("HIGH");
+    digitalWrite(ENA_P, HIGH);
+    digitalWrite(ENA_M, HIGH);
   }
   else
   {
-    PORTB &= ~(RESET_MASK | SLEEP_MASK);
-    stepCount = 0;
+    //Serial.println("LOW");
+    digitalWrite(ENA_P, LOW);
+    digitalWrite(ENA_M, LOW);
   }
 }
 #endif

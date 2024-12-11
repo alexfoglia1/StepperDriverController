@@ -3,7 +3,7 @@
 #include "Board.h"
 
 void motorStep(int stepDelay);
-#ifdef BOARD_REVB
+#ifdef BOARD_REV_B
 void motorPower(bool powerOn);
 #endif
 
