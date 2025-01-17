@@ -76,6 +76,7 @@ bool isPhoto1 = false;
 bool isPhoto2 = false;
 bool startReceived = false;
 bool stopReceived = false;
+uint8_t buttonsFromMaint  = 0;
 uint16_t countBtn1Pressed = 0;
 uint16_t countBtn2Pressed = 0;
 uint16_t countBtn3Pressed = 0;
@@ -201,7 +202,20 @@ void inputValueToLcdString(const char* label, char prompt[20], uint16_t n, bool 
 uint8_t btnCount[5] = {0, 0, 0, 0, 0};
 void readUserButton(int curMillis)
 {
-  int valueRead = analogRead(BUTTON_IN);
+  int valueRead = 0;
+  if (buttonsFromMaint)
+  {
+    if (buttonsFromMaint & BTN_MASK(1)) valueRead = eepromParams.Values.btn1;
+    else if (buttonsFromMaint & BTN_MASK(2)) valueRead = eepromParams.Values.btn2;
+    else if (buttonsFromMaint & BTN_MASK(3)) valueRead = eepromParams.Values.btn3;
+    else if (buttonsFromMaint & BTN_MASK(4)) valueRead = eepromParams.Values.btn4;
+    else if (buttonsFromMaint & BTN_MASK(5)) valueRead = eepromParams.Values.btn5;
+    else valueRead = analogRead(BUTTON_IN);
+  }
+  else
+  {
+    valueRead = analogRead(BUTTON_IN);
+  }
 
   if (valueRead + BTN_TOL >= eepromParams.Values.btn1 && valueRead - BTN_TOL <= eepromParams.Values.btn1)
   {
@@ -695,7 +709,7 @@ void loop()
     EEPROM_UPDATE = false;
   }
   
-  MAINT_Handler(&EEPROM_UPDATE, &isStepperMoving);
+  MAINT_Handler(&EEPROM_UPDATE, &isStepperMoving, &buttonsFromMaint);
 #if 0
   long deltaMicros = micros() - t0;
   long toWait = eepromParams.Values.minDelayMicros - deltaMicros;

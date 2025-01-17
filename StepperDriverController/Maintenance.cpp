@@ -11,7 +11,7 @@ maint_rx_state_t rx_state = WAIT_SYNC;
 uint8_t rxBuffer[2] = {0, 0};
 
 
-void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMoving)
+void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMoving, uint8_t* buttonsState)
 {
   Serial.write(SYNC_CHAR);
   Serial.write(rxHeader->Bytes.byte_1.Byte);
@@ -96,8 +96,7 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
 
   if (rxHeader->Bytes.byte_2.Bits.get_btn_state)
   {
-    extern uint8_t buttonsState;
-    Serial.write(buttonsState);
+    Serial.write(*buttonsState);
   }
   if (rxHeader->Bytes.byte_2.Bits.get_analog2_in)
   {
@@ -112,21 +111,18 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
     Serial.write(0x00);
     Serial.write(0x00);
   }
-  if (rxHeader->Bytes.byte_2.Bits.get_btn_12_val)
+  if (rxHeader->Bytes.byte_2.Bits.get_btn_val)
   {
     uint16_t btn1 = eepromParams.Values.btn1;
     uint16_t btn2 = eepromParams.Values.btn2;
+    uint16_t btn3 = eepromParams.Values.btn3;
+    uint16_t btn4 = eepromParams.Values.btn4;
+    uint16_t btn5 = eepromParams.Values.btn5;
+        
     Serial.write((btn1 & 0xFF00) >> 8);
     Serial.write((btn1 & 0x00FF));
     Serial.write((btn2 & 0xFF00) >> 8);
     Serial.write((btn2 & 0x00FF));
-    
-  }
-  if (rxHeader->Bytes.byte_2.Bits.get_btn_345_val)
-  {
-    uint16_t btn3 = eepromParams.Values.btn3;
-    uint16_t btn4 = eepromParams.Values.btn4;
-    uint16_t btn5 = eepromParams.Values.btn5;
     Serial.write((btn3 & 0xFF00) >> 8);
     Serial.write((btn3 & 0x00FF));
     Serial.write((btn4 & 0xFF00) >> 8);
@@ -158,6 +154,14 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
 
     *eepromUpdate = true;
   }
+  if (rxHeader->Bytes.byte_2.Bits.set_btn_state)
+  {
+    if (Serial.available())
+    {
+       uint8_t newButtonsState = Serial.read() & 0xFF;
+       *buttonsState = newButtonsState;
+    }
+  }
   if (rxHeader->Bytes.byte_2.Bits.get_sw_ver)
   {
     Serial.write(MAJOR_V);
@@ -169,7 +173,7 @@ void data_ingest(maint_header_t* rxHeader, bool* eepromUpdate, bool* stepperMovi
 }
 
 
-void update_fsm(uint8_t byteIn, bool* eepromUpdate, bool* stepperMoving)
+void update_fsm(uint8_t byteIn, bool* eepromUpdate, bool* stepperMoving, uint8_t* buttonsState)
 {
   if (rx_state == WAIT_SYNC && byteIn == SYNC_CHAR)
   {
@@ -194,19 +198,19 @@ void update_fsm(uint8_t byteIn, bool* eepromUpdate, bool* stepperMoving)
     if (pByte2->Bits.zero == 0)
     {
       rxBuffer[1] = byteIn;
-      data_ingest((maint_header_t*) rxBuffer, eepromUpdate, stepperMoving);
+      data_ingest((maint_header_t*) rxBuffer, eepromUpdate, stepperMoving, buttonsState);
     }
     rx_state = WAIT_SYNC;
   }
 }
 
 
-void MAINT_Handler(bool* eepromUpdate, bool* stepperMoving)
+void MAINT_Handler(bool* eepromUpdate, bool* stepperMoving, uint8_t* buttonsState)
 {
   if (Serial.available())
   {
     uint8_t byteIn = (uint8_t)(Serial.read() & 0xFF);
 
-    update_fsm(byteIn, eepromUpdate, stepperMoving);
+    update_fsm(byteIn, eepromUpdate, stepperMoving, buttonsState);
   }
 }

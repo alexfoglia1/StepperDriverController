@@ -36,13 +36,16 @@ MaintenanceWindow::MaintenanceWindow()
 	connect(_ui.btnWriteMinDelay, &QPushButton::clicked, this, &MaintenanceWindow::onBtnWriteMinDelay);
 	connect(_ui.btnInvert, &QPushButton::clicked, this, &MaintenanceWindow::onBtnInvert);
 	connect(_ui.btnStartStopMotor, &QPushButton::clicked, this, &MaintenanceWindow::onBtnStartStop);
-	connect(_ui.btnDefault, &QPushButton::clicked, this, &MaintenanceWindow::onBtnDefault);
-    connect(_ui.btnReadButton1, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButton1);
-    connect(_ui.btnReadButton3, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButton3);
     connect(_ui.btnDefault, &QPushButton::clicked, this, &MaintenanceWindow::onBtnDefault);
     connect(_ui.btnWriteButtons, &QPushButton::clicked, this, &MaintenanceWindow::onBtnWriteButtons);
+    connect(_ui.btnReadButtons, &QPushButton::clicked, this, &MaintenanceWindow::onBtnReadButtons);
     //connect(_ui.spinMaxDelay, &QSpinBox::valueChanged, this, &MaintenanceWindow::onDelayChanged);
-    connect(_ui.spinMinDelay, QOverload<int>::of(&QSpinBox::valueChanged), this, &MaintenanceWindow::onDelayChanged);
+    //connect(_ui.spinMinDelay, QOverload<int>::of(&QSpinBox::valueChanged), this, &MaintenanceWindow::onDelayChanged);
+    connect(_ui.checkButton1_tx, &QCheckBox::clicked, this, &MaintenanceWindow::onSetButtonsState);
+    connect(_ui.checkButton2_tx, &QCheckBox::clicked, this, &MaintenanceWindow::onSetButtonsState);
+    connect(_ui.checkButton3_tx, &QCheckBox::clicked, this, &MaintenanceWindow::onSetButtonsState);
+    connect(_ui.checkButton4_tx, &QCheckBox::clicked, this, &MaintenanceWindow::onSetButtonsState);
+    connect(_ui.checkButton5_tx, &QCheckBox::clicked, this, &MaintenanceWindow::onSetButtonsState);
 
     QTimer* pollTimeout = new QTimer();
     pollTimeout->setTimerType(Qt::PreciseTimer);
@@ -87,13 +90,13 @@ void MaintenanceWindow::onPollTimeout()
 }
 
 
-void MaintenanceWindow::onBtnReadButton1()
+void MaintenanceWindow::onBtnReadButtons()
 {
     if (_serialPort)
     {
         maint_header_t headerTx;
         headerTx.Word = 0;
-        headerTx.Bytes.byte_2.Bits.get_btn_12_val = 1;
+        headerTx.Bytes.byte_2.Bits.get_btn_val = 1;
 
         QByteArray qba;
         qba.push_back(SYNC_CHAR);
@@ -105,18 +108,27 @@ void MaintenanceWindow::onBtnReadButton1()
 }
 
 
-void MaintenanceWindow::onBtnReadButton3()
+void MaintenanceWindow::onSetButtonsState()
 {
     if (_serialPort)
     {
+        quint8 buttonsState = 0;
+
+        buttonsState = _ui.checkButton1_tx->isChecked() ? (buttonsState | BTN_MASK(1)) : (buttonsState & ~(BTN_MASK(1)));
+        buttonsState = _ui.checkButton2_tx->isChecked() ? (buttonsState | BTN_MASK(2)) : (buttonsState & ~(BTN_MASK(2)));
+        buttonsState = _ui.checkButton3_tx->isChecked() ? (buttonsState | BTN_MASK(3)) : (buttonsState & ~(BTN_MASK(3)));
+        buttonsState = _ui.checkButton4_tx->isChecked() ? (buttonsState | BTN_MASK(4)) : (buttonsState & ~(BTN_MASK(4)));
+        buttonsState = _ui.checkButton5_tx->isChecked() ? (buttonsState | BTN_MASK(5)) : (buttonsState & ~(BTN_MASK(5)));
+
         maint_header_t headerTx;
         headerTx.Word = 0;
-        headerTx.Bytes.byte_2.Bits.get_btn_345_val = 1;
+        headerTx.Bytes.byte_2.Bits.set_btn_state = 1;
 
         QByteArray qba;
         qba.push_back(SYNC_CHAR);
         qba.push_back(headerTx.Bytes.byte_1.Byte);
         qba.push_back(headerTx.Bytes.byte_2.Byte);
+        qba.push_back(buttonsState);
 
         _serialPort->write(qba);
     }
@@ -360,7 +372,7 @@ void MaintenanceWindow::dataIngest()
 
         curOffset += 2;
     }
-    if (protocolByteIn2.Bits.get_btn_12_val)
+    if (protocolByteIn2.Bits.get_btn_val)
     {
         quint16 btn1MSB = _rxBuffer[curOffset];
         quint16 btn1LSB = _rxBuffer[curOffset + 1];
@@ -372,9 +384,7 @@ void MaintenanceWindow::dataIngest()
         _ui.spinButton2->setValue(btn2);
 
         curOffset += 4;
-    }
-    if (protocolByteIn2.Bits.get_btn_345_val)
-    {
+
         quint16 btn3MSB = _rxBuffer[curOffset];
         quint16 btn3LSB = _rxBuffer[curOffset + 1];
         quint16 btn4MSB = _rxBuffer[curOffset + 2];
@@ -464,13 +474,9 @@ void MaintenanceWindow::update_fsm(quint8 byteIn)
                 {
                     _expectedPayloadSize += 2;
                 }
-                if (hdr->Bytes.byte_2.Bits.get_btn_12_val)
+                if (hdr->Bytes.byte_2.Bits.get_btn_val)
                 {
-                    _expectedPayloadSize += 4;
-                }
-                if (hdr->Bytes.byte_2.Bits.get_btn_345_val)
-                {
-                    _expectedPayloadSize += 6;
+                    _expectedPayloadSize += 10;
                 }
                 if (hdr->Bytes.byte_2.Bits.get_sw_ver)
                 {

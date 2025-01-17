@@ -28,9 +28,9 @@ typedef union
         uint8_t get_btn_state   :1;
         uint8_t get_analog2_in  :1;
         uint8_t get_analog5_in  :1;
-        uint8_t get_btn_12_val  :1;
-        uint8_t get_btn_345_val :1;
+        uint8_t get_btn_val     :1;
         uint8_t set_btn_val     :1;
+        uint8_t set_btn_state   :1;
         uint8_t get_sw_ver      :1;
         uint8_t zero            :1;
     } Bits;
@@ -56,7 +56,9 @@ typedef enum
   WAIT_DATA
 } maint_rx_state_t;
 
-void MAINT_Handler(bool* eepromUpdate, bool* stepperMoving);
+
+void MAINT_Handler(bool* eepromUpdate, bool* stepperMoving, uint8_t* buttonsState);
+
 
 
 #endif
